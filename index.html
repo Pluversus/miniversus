@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Miniversus</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <link
+    rel="preconnect"
+    href="https://fonts.googleapis.com">
+
+    <link
+    rel="preconnect"
+    href="https://fonts.gstatic.com"
+    crossorigin>
+
+    <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
+</head>
+<body>
+
+    <!-- Botón Principal Activador -->
+    <div id="toolbar">
+        <button class="tool-btn main-trigger" id="menuTrigger">
+            <img src="assets/menu.svg" alt="Menú" class="btn-icon">
+        </button>
+    </div>
+
+    <!-- Barra de Herramientas Flotante Secundaria (Oculta por defecto) -->
+    <div id="floating-toolbar" class="hidden">
+        <button class="tool-btn sub-btn" data-panel="dice" title="Dados">
+            <img src="assets/dice.svg" alt="Dados" class="btn-icon"> 
+        </button>
+
+        <button class="tool-btn sub-btn" data-panel="tools" title="Herramientas">
+            <img src="assets/tools.svg" alt="Herramientas" class="btn-icon">
+        </button>
+
+        <button class="tool-btn sub-btn" data-panel="map" title="Mapa">
+            <img src="assets/map.svg" alt="Mapa" class="btn-icon">
+        </button>
+
+        <button class="tool-btn sub-btn" data-panel="entities" title="Entidades">
+            <img src="assets/entities.svg" alt="Entidades" class="btn-icon">
+        </button>
+
+        <button class="tool-btn sub-btn" data-panel="entityBank" title="Banco de entidades">
+            <img src="assets/entitybank.svg" alt="Banco de entidades" class="btn-icon">
+        </button>
+
+        <button class="tool-btn sub-btn" data-panel="initiative" title="Iniciativa">
+            <img src="assets/initiative.svg" alt="Iniciativa" class="btn-icon">
+        </button>
+
+        <button class="tool-btn sub-btn" data-panel="lights" title="Luces">
+            <img src="assets/lights.svg" alt="Luces" class="btn-icon">
+        </button>
+
+        <button class="tool-btn sub-btn" data-panel="fogs" title="Niebla">
+            <img src="assets/fogs.svg" alt="Niebla" class="btn-icon">
+        </button>
+
+        <button class="tool-btn sub-btn" data-panel="notes" title="Notas">
+            <img src="assets/notes.svg" alt="Notas" class="btn-icon"> 
+        </button>
+
+        <button class="tool-btn sub-btn" data-panel="boards" title="Tableros">
+            <img src="assets/boards.svg" alt="Tableros" class="btn-icon">
+        </button>
+
+        <button class="tool-btn sub-btn" data-panel="log" title="Registro de Sesión">
+            <img src="assets/logs.svg" alt="Registro" class="btn-icon">
+        </button>
+    </div>
+
+    <!-- VENTANAS FLOTANTES -->
+    <div id="window-container">
+        
+        <!-- HERRAMIENTAS -->
+        <div id="toolsPanel" class="floating-window hidden" style="top: 100px; left: 100px;">
+            <div class="window-header">
+                <span class="window-title">Herramientas</span>
+                <div class="window-controls">
+                    <button class="minimize-window-btn">—</button>
+                    <button class="close-window-btn">×</button>
+                </div>
+            </div>
+            <div class="window-content">
+                <label>Funciones de sesión</label>
+                <label class="file-btn">Importar<input type="file" id="importBoard" accept=".json"></label>
+                <button onclick="exportBoard()">Exportar</button>
+                <label>Medición de distancia</label>
+                <button id="measureToolBtn">Modo medición</button>
+                <label>Dibujar en el mapa</label>
+                <button id="drawToolBtn">Modo dibujo</button>
+                <button id="eraserDrawToolBtn">Modo borrador</button>
+                <button id="eraseDrawBtn">Borrar todo</button>
+                <input type="color" id="drawColor" value="#ff0000">
+                <input type="range" id="drawSize" min="1" max="20" value="3">
+            </div>
+        </div>
+
+        <!-- ENTIDADES -->
+        <div id="entitiesPanel" class="floating-window hidden" style="top: 120px; left: 150px;">
+            <div class="window-header">
+                <span class="window-title">Entidades</span>
+                <div class="window-controls">
+                    <button class="minimize-window-btn">—</button>
+                    <button class="close-window-btn">×</button>
+                </div>
+            </div>
+            <div class="window-content">
+                <label>Crear entidad</label>
+                <button onclick="createEntity('character')">Personaje</button>
+                <button onclick="createEntity('enemy')">Enemigo</button>
+                <button onclick="createEntity('object')">Objeto</button>
+            </div>
+        </div>
+
+        <!-- BANCO DE ENTIDADES (VENTANA FLOTANTE) -->
+        <div id="entityBankPanel" class="floating-window hidden" style="top: 140px; left: 200px; width: 320px;">
+            <div class="window-header">
+                <span class="window-title">Banco de Entidades</span>
+                <div class="window-controls">
+                    <button class="minimize-window-btn">—</button>
+                    <button class="close-window-btn">×</button>
+                </div>
+            </div>
+            <div class="window-content" style="gap: 10px;">
+                <p style="font-size: 8.5pt; color: var(--color-text-muted);">
+                    Arrastra una entidad hacia el tablero para instanciarla rápidamente.
+                </p>
+                <div id="entityBankList" style="display: flex; flex-direction: column; gap: 8px; flex: 1; overflow-y: auto;">
+                    <!-- Las entidades del banco se generarán dinámicamente aquí -->
+                </div>
+            </div>
+        </div>
+
+        <!-- INICIATIVA -->
+        <div id="initiativePanel" class="floating-window hidden" style="top: 150px; left: 550px; width: 380px; min-width: 360px;">
+            <div class="window-header">
+                <span class="window-title">Iniciativa</span>
+                <div class="window-controls">
+                    <button class="minimize-window-btn">—</button>
+                    <button class="close-window-btn">×</button>
+                </div>
+            </div>
+            <div class="window-content" style="gap: 12px; width: 100%; box-sizing: border-box;">
+                
+                <!-- Turno Actual / Indicador -->
+                <div id="initiativeTurnDisplay" style="background: var(--color-bg-elevated); border: 1px solid var(--color-border); border-radius: 10px; padding: 10px; text-align: center;">
+                    <span style="font-size: 8pt; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Turno Actual</span>
+                    <div id="activeEntityName" style="font-size: 13pt; font-weight: 700; color: #38bdf8; margin-top: 2px;">
+                        —
+                    </div>
+                </div>
+
+                <!-- Lista de Entidades en Iniciativa -->
+                <div id="initiativeList" style="max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; background: var(--color-bg-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 8px;">
+                    <div style="color: var(--color-text-muted); font-size: 8.5pt; text-align: center; padding: 12px;">
+                        No hay entidades seleccionadas.
+                    </div>
+                </div>
+
+                <!-- Acciones y Controles -->
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+                    <div style="display: flex; gap: 8px;">
+                        <button id="toggleSelectEntitiesBtn" class="sub-btn" onclick="toggleSelectEntitiesOnBoard()" style="flex: 1; font-size: 8.5pt; font-weight: 600; border: 1px solid var(--color-border-light);">Seleccionar en Tablero</button>
+                        <button onclick="rollAllInitiatives()" style="flex: 1; background: linear-gradient(180deg, #3b82f6, #1d4ed8); font-size: 8.5pt;">Roll Iniciativa</button>
+                    </div>
+                    
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="nextTurn()" style="flex: 2; background: linear-gradient(180deg, var(--primary-color), var(--primary-dark)); font-weight: 700;">Siguiente Turno</button>
+                        <button onclick="clearInitiative()" style="flex: 1; background: linear-gradient(180deg, #ef4444, #991b1b); font-size: 8.5pt;">Limpiar</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- MAPA -->
+        <div id="mapPanel" class="floating-window hidden" style="top: 140px; left: 200px;">
+            <div class="window-header">
+                <span class="window-title">Mapa</span>
+                <div class="window-controls">
+                    <button class="minimize-window-btn">—</button>
+                    <button class="close-window-btn">×</button>
+                </div>
+            </div>
+            <div class="window-content">
+                <label>Imagen del mapa</label>
+                <label class="file-btn">Subir mapa<input type="file" id="imageUpload" accept="image/*"></label>
+                <label>Tamaño del grid</label>
+                <input type="number" id="cellSizeInput" value="40">
+                <button onclick="resizeBoard()">Cambiar tamaño</button>
+                <button onclick="toggleGridColor()">Cambiar color</button>
+                <label>Escala del mapa</label>
+                <input type="number" id="mapScaleInput" value="1" step="0.25">
+                <button onclick="applyMapScale()">Escalar mapa</button>
+                <label>Modo de visión</label>
+                <button onclick="setVision('normal')">Normal</button>
+                <button onclick="setVision('night')">Nocturna</button>
+                <button onclick="setVision('sepia')">Sepia</button>
+                <button onclick="setVision('thermal')">Blanco y negro</button>
+                <button onclick="setVision('darkvision')">Visión Nocturna</button>
+            </div>
+        </div>
+
+        <!-- LUCES -->
+        <div id="lightsPanel" class="floating-window hidden" style="top: 160px; left: 250px;">
+            <div class="window-header">
+                <span class="window-title">Luces</span>
+                <div class="window-controls">
+                    <button class="minimize-window-btn">—</button>
+                    <button class="close-window-btn">×</button>
+                </div>
+            </div>
+            <div class="window-content">
+                <label>Luces dinámicas</label>
+                <button id="toggleLightingBtn">ON/OFF luces</button>
+                <button id="toggleLightingEditor">Modo editor</button>
+                <button id="lightToolBtn">Luz</button>
+                <button id="wallToolBtn">Pared</button>
+                <button id="doorToolBtn">Puerta</button>
+                <button id="moveToolBtn">Mover</button>
+                <button id="eraseToolBtn">Borrar</button>
+                <label>Porcentaje de oscuridad</label>
+                <input type="number" id="darkPercentage" value="55" min="1" max="100">
+                <label>Intensidad de luces</label>
+                <input type="number" id="lightPercentage" value="35" min="1" max="100">
+                <label>Radio personajes</label>
+                <input type="number" id="characterLightRadius" value="250" min="50" max="1000">
+                <label>Radio nueva luz</label>
+                <input type="number" id="newLightRadius" value="350" min="50" max="1000">
+                <label>Color nueva luz</label>
+                <input type="color" id="newLightColor" value="#fff4aa">
+                <button id="clearLightsBtn">Limpiar luces</button>
+                <button id="clearWallsBtn">Limpiar paredes</button>
+            </div>
+        </div>
+
+        <!-- NIEBLA -->
+        <div id="fogsPanel" class="floating-window hidden" style="top: 180px; left: 300px;">
+            <div class="window-header">
+                <span class="window-title">Niebla</span>
+                <div class="window-controls">
+                    <button class="minimize-window-btn">—</button>
+                    <button class="close-window-btn">×</button>
+                </div>
+            </div>
+            <div class="window-content">
+                <label>Niebla de guerra</label>
+                <button id="toggleFogBtn">ON/OFF niebla</button>
+                <label>Radio personajes</label>
+                <input type="number" id="characterFogRadius" value="250" min="50" max="1000">
+                <button onclick="resetFog()">Reiniciar niebla</button>
+            </div>
+        </div>
+
+        <!-- TABLEROS -->
+        <div id="boardsPanel" class="floating-window hidden" style="top: 200px; left: 350px;">
+            <div class="window-header">
+                <span class="window-title">Tableros</span>
+                <div class="window-controls">
+                    <button class="minimize-window-btn">—</button>
+                    <button class="close-window-btn">×</button>
+                </div>
+            </div>
+            <div class="window-content">
+                <label>Tableros de sesión</label>
+                <div id="boardsTabs"></div>
+                <button id="addBoardBtn">+ Nuevo tablero</button>
+
+                <hr style="border: 0; border-top: 1px solid #333; margin: 10px 0;">
+
+                <label>Nombre del tablero activo</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="boardNameInput" placeholder="Nombre del tablero">
+                    <button id="renameBoardBtn">Guardar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- NOTAS -->
+        <div id="notesPanel" class="floating-window hidden" style="top: 220px; left: 400px;">
+            <div class="window-header">
+                <span class="window-title">Notas</span>
+                <div class="window-controls">
+                    <button class="minimize-window-btn">—</button>
+                    <button class="close-window-btn">×</button>
+                </div>
+            </div>
+            <div class="window-content">
+                <textarea id="sessionNotes" placeholder="Escribe tus notas aquí..." rows="10" style="resize: none;"></textarea>
+            </div>
+        </div>
+
+        <!-- VENTANA DE DADOS -->
+        <div id="dicePanel" class="floating-window hidden" style="top: 100px; left: 450px;">
+            <div class="window-header">
+                <span class="window-title">Lanzar Dados</span>
+                <div class="window-controls">
+                    <button class="minimize-window-btn">—</button>
+                    <button class="close-window-btn">×</button>
+                </div>
+            </div>
+            <div class="window-content" style="align-items: center; gap: 10px;">
+                
+                <div class="d20-container">
+                    <div id="d20" class="d20-shape">
+                        <span id="d20ResultText">20</span>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 5px; align-items: center; width: 100%;">
+                    <input type="number" id="diceQuantityInput" value="1" min="1" max="20" style="width: 55px; padding: 5px;" title="Cantidad de dados">
+                    <span style="color: #a3a3a3;">d</span>
+                    <select id="normalRollSelect" style="flex: 1; padding: 5px;">
+                        <option value="100">100</option>
+                        <option value="80">80</option>
+                        <option value="40">40</option>
+                        <option value="20" selected>20</option>
+                        <option value="16">16</option>
+                        <option value="12">12</option>
+                        <option value="10">10</option>
+                        <option value="8">8</option>
+                        <option value="6">6</option>
+                        <option value="4">4</option>
+                    </select>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 5px; width: 100%;">
+                    <label style="font-size: 8.5pt; color: #a3a3a3;">Modificador (-10 a 10)</label>
+                    <input type="number" id="diceModInput" value="0" min="-10" max="10" placeholder="Mod. (-10 a 10)" style="width: 100%; padding: 5px;">
+                    
+                    <select id="diceModTargetSelect" style="width: 100%; padding: 5px; font-size: 8.5pt;">
+                        <option value="total" selected>Aplicar al TOTAL de la suma</option>
+                        <option value="each">Aplicar a cada DADO individual</option>
+                    </select>
+                    
+                    <button id="rollDiceBtn" onclick="normalRoll()" style="margin-top: 5px;">Lanzar dados</button>
+                </div>
+
+                <div id="diceBreakdownArea" style="width: 100%; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; padding: 8px; margin-top: 5px; display: none;">
+                    <div style="font-size: 11pt; font-weight: bold; color: #22c55e; margin-bottom: 5px;" id="diceTotalDisplay">
+                        Total: -
+                    </div>
+                    <div id="diceBreakdownList" style="font-size: 8.5pt; color: #ccc; max-height: 100px; overflow-y: auto; white-space: pre-line;">
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- REGISTRO -->
+        <div id="logPanel" class="floating-window hidden" style="top: 240px; left: 500px;">
+            <div class="window-header">
+                <span class="window-title">Registro de Sesión</span>
+                <div class="window-controls">
+                    <button class="minimize-window-btn">—</button>
+                    <button class="close-window-btn">×</button>
+                </div>
+            </div>
+            <div class="window-content">
+                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <button onclick="clearSessionLog()" style="background: #333; color: #ff6666;">Limpiar</button>
+                </div>
+                <div id="sessionLogContainer" style="flex: 1; background: #141414; border: 1px solid #262626; border-radius: 8px; padding: 10px; overflow-y: auto; font-family: monospace; font-size: 8.5pt; display: flex; flex-direction: column; gap: 6px;">
+                    <div style="color: #888;">No hay eventos registrados en la sesión.</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="board-container">
+        <img id="map-image"/>
+        <canvas id="lightingCanvas"></canvas>
+        <canvas id="fogCanvas"></canvas>
+        <canvas id="measureCanvas"></canvas>
+        <canvas id="drawCanvas"></canvas>
+        <div id="grid" class="light"></div>
+    </div>
+
+</body>
+
+<!-- MODALES -->
+
+<!-- CREAR O EDITAR ENTIDAD -->
+<div id="entityModal" class="modal fullscreen-modal hidden">
+
+    <div class="modal-content entity-editor-container">
+
+        <div class="entity-editor-header">
+            <h2 id="entityModalTitle">Crear Entidad</h2>
+            <div class="header-actions">
+                <button id="confirmEntityBtn" onclick="confirmEntity()">Guardar</button>
+                <button class="btn-cancel" onclick="closeEntityModal()">Cancelar</button>
+            </div>
+        </div>
+
+        <!-- DATOS BÁSICOS -->
+        <div class="basic-data-grid">
+            <div class="input-group">
+                <label>Nombre</label>
+                <input id="entityName" placeholder="Nombre de la entidad">
+            </div>
+
+            <div class="input-group">
+                <label>Clase</label>
+                <input id="entityClass" placeholder="Ej: Guerrero, Mago, Bestia...">
+            </div>
+
+            <div class="input-group">
+                <label>Imagen / Token</label>
+                <label class="file-btn">
+                    Subir Foto
+                    <input type="file" id="editEntityImageInput" accept="image/*">
+                </label>
+            </div>
+
+            <div class="input-group">
+                <label>Tamaño (Casillas)</label>
+                <input id="entitySize" type="number" min="1" value="1">
+            </div>
+
+            <div class="input-group">
+                <label>Vida (Actual / Máx)</label>
+                <div class="dual-input">
+                    <input id="vidaActual" type="number" value="10">
+                    <span>/</span>
+                    <input id="vidaMax" type="number" value="10">
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>Maná (Actual / Máx)</label>
+                <div class="dual-input">
+                    <input id="manaActual" type="number" value="5">
+                    <span>/</span>
+                    <input id="manaMax" type="number" value="5">
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>Velocidad</label>
+                <input id="velocidadInput" type="number" value="10">
+            </div>
+
+            <div class="input-group">
+                <label>Dado de Iniciativa</label>
+                <select id="initDiceSelect">
+                    <option value="4">d4</option>
+                    <option value="6">d6</option>
+                    <option value="8">d8</option>
+                    <option value="10">d10</option>
+                    <option value="12">d12</option>
+                    <option value="20" selected>d20</option>
+                    <option value="100">d100</option>
+                </select>
+            </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- NAVEGACIÓN POR SECCIONES (PESTAÑAS) -->
+        <div class="entity-tabs" role="tablist">
+            <button type="button" class="tab-btn active" role="tab" onclick="switchEntityTab('statsTab', this)">
+                Estadísticas
+            </button>
+            <button type="button" class="tab-btn" role="tab" onclick="switchEntityTab('abilitiesTab', this)">
+                Habilidades
+            </button>
+            <button type="button" class="tab-btn" role="tab" onclick="switchEntityTab('inventoryTab', this)">
+                Inventario
+            </button>
+            <button type="button" class="tab-btn" role="tab" onclick="switchEntityTab('statusTab', this)">
+                Estados
+            </button>
+            <button type="button" class="tab-btn" onclick="switchEntityTab('macrosTab', this)">
+                Macros
+            </button>
+            <button type="button" class="tab-btn" onclick="switchEntityTab('macroDocTab', this)">
+                Docs. Macros
+            </button>
+        </div>
+
+        <!-- SECCIÓN 1: ESTADÍSTICAS -->
+        <div id="statsTab" class="tab-content active">
+            <div class="tab-header">
+                <h3>Estadísticas Base</h3>
+                <button onclick="addStatField()">+ Añadir Stat</button>
+            </div>
+            <div id="statsContainer" class="single-line-list"></div>
+        </div>
+
+        <!-- SECCIÓN 2: HABILIDADES -->
+        <div id="abilitiesTab" class="tab-content hidden">
+            <div class="tab-header">
+                <h3>Habilidades</h3>
+                <button onclick="addAbilityField()">+ Añadir Habilidad</button>
+            </div>
+            <div id="abilitiesContainer" class="single-line-list"></div>
+        </div>
+
+        <!-- SECCIÓN 3: INVENTARIO -->
+        <div id="inventoryTab" class="tab-content hidden">
+            <div class="inventory-section">
+                <div class="tab-header">
+                    <h3>Armas</h3>
+                    <button onclick="addWeaponField()">+ Añadir Arma</button>
+                </div>
+                <div id="weaponsContainer" class="single-line-list"></div>
+            </div>
+
+            <hr class="divider">
+
+            <div class="inventory-section">
+                <div class="tab-header">
+                    <h3>Objetos Modificadores</h3>
+                    <button onclick="addItemField()">+ Añadir Objeto</button>
+                </div>
+                <div id="itemsContainer" class="single-line-list"></div>
+            </div>
+        </div>
+
+        <!-- SECCIÓN 4: ESTADOS (EFECTOS Y CONDICIONES) -->
+        <div id="statusTab" class="tab-content hidden">
+            <div class="tab-header">
+                <h3>Estados del Personaje</h3>
+                <button onclick="addStatusField()">+ Añadir Estado</button>
+            </div>
+            <div id="statusContainer" class="single-line-list"></div>
+        </div>
+
+        <!-- SECCIÓN: GESTOR DE MACROS -->
+        <div id="macrosTab" class="tab-content hidden">
+            <div class="tab-header">
+                <h3>Macros de la Entidad</h3>
+                <button type="button" onclick="addMacroField()">+ Añadir Macro</button>
+            </div>
+            <div id="macrosContainer" class="single-line-list"></div>
+        </div>
+
+        <!-- SECCIÓN: DOCUMENTACIÓN DE MACROS -->
+        <div id="macroDocTab" class="tab-content hidden" style="font-size: 8.5pt; color: #ccc; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; padding-right: 8px;">
+            <h3>Documentación del Sistema de Macros</h3>
+            <p>Tener en cuenta que las macros solo aplican cuando se realizan acciones de personaje y no cuando se modifica la entidad manualmente, también, puede haber errores.</p>
+
+            <!-- 1. EVENTOS DETECTABLES -->
+            <div>
+                <h4 style="color: #38bdf8; margin-bottom: 6px;">1. Eventos Detectables (`event.type`)</h4>
+                <p style="margin-bottom: 8px; color: #aaa;">
+                    Son los detonadores que evalúan la macro cuando ocurre una acción en la entidad o tablero. La variable <code>event</code> proporciona contexto sobre la acción.
+                </p>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code style="color: #01d9ff;">turn_start</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Se dispara cuando se inicia el turno de la entidad.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: event.type === 'turn_start'
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code style="color: #22c55e;">hp_increased</code> / <code style="color: #ef4444;">hp_decreased</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Se disparan cuando los Puntos de Vida de la entidad aumentan o disminuyen.</p>
+                        <div style="margin-top: 4px; font-family: monospace; color: #eab308; font-size: 8pt;">
+                            Variables extra: <code>event.amount</code> (monto cambiado), <code>event.current</code> (vida actual), <code>event.casterData</code> (si aumenta el hp, los datos de la entidad que lo hizo, no se incluye en incremento por estado), <code>event.attackerData</code> (si desminuye el hp, los datos de la entidad que lo hizo, no se incluye en disminución por estado).
+                        </div>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: event.type === 'hp_decreased' && event.current &lt; 5
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code style="color: #a855f7;">mana_decreased</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Se disparan cuando la reserva de Maná de la entidad disminuye.</p>
+                        <div style="margin-top: 4px; font-family: monospace; color: #eab308; font-size: 8pt;">
+                            Variables extra: <code>event.amount</code> (monto cambiado), <code>event.current</code> (maná actual).
+                        </div>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: event.type === 'mana_decreased' && event.current === 0
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code style="color: #f97316;">ability_added</code> / <code style="color: #f97316;">ability_removed</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Se disparan al agregar o eliminar una habilidad de la entidad.</p>
+                        <div style="margin-top: 4px; font-family: monospace; color: #eab308; font-size: 8pt;">
+                            Variables extra: <code>event.ability</code> (nombre de la habilidad).
+                        </div>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: event.type === 'ability_added' && event.ability === 'Bola de Fuego'
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code style="color: #eab308;">weapon_added</code> / <code style="color: #eab308;">weapon_removed</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Se disparan al añadir o retirar un arma del inventario de la entidad.</p>
+                        <div style="margin-top: 4px; font-family: monospace; color: #eab308; font-size: 8pt;">
+                            Variables extra: <code>event.weapon</code> (nombre del arma).
+                        </div>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: event.type === 'weapon_added' && event.weapon === 'Espada de Fuego'
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code style="color: #3b82f6;">item_added</code> / <code style="color: #3b82f6;">item_removed</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Se disparan al equipar o remover un objeto modificador del inventario.</p>
+                        <div style="margin-top: 4px; font-family: monospace; color: #eab308; font-size: 8pt;">
+                            Variables extra: <code>event.item</code> (nombre del objeto).
+                        </div>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: event.type === 'item_added' && event.item === 'Anillo de Fuerza'
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code style="color: #ec4899;">status_added</code> / <code style="color: #ec4899;">status_removed</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Se disparan cuando se aplica o remueve un estado alterado de la entidad.</p>
+                        <div style="margin-top: 4px; font-family: monospace; color: #eab308; font-size: 8pt;">
+                            Variables extra: <code>event.status</code> (nombre del estado), <code>event.statusData</code> (planilla de tipo estado), <code>event.entityData</code> (entidad que aplico el estado).
+                        </div>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: event.type === 'status_added' && event.status === 'Envenenado'
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code style="color: #c0ec48;">ability_used</code> / <code style="color: #c0ec48;">skill_used</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Se dispara cuando una entidad utiliza una habilidad de cualquier tipo.</p>
+                        <div style="margin-top: 4px; font-family: monospace; color: #eab308; font-size: 8pt;">
+                            Variables extra: <code>event.ability</code> (nombre de la habilidad) <code>event.damage</code> (si la habilidad es de daño, cuanto daño hizo) <code>event.targetData</code> (si la habilidad es de daño, los datos del objetivo, se pueden modificar).
+                        </div>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: event.type === 'ability_used' && event.ability === 'Trueno'
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code style="color: #ec7c48;">weapon_used</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Se dispara cuando una entidad utiliza un arma para atacar.</p>
+                        <div style="margin-top: 4px; font-family: monospace; color: #eab308; font-size: 8pt;">
+                            Variables extra: <code>event.weapon</code> (nombre del arma) <code>event.damage</code> (daño realizado) <code>event.targetData</code> (datos del objetivo, se pueden modificar).
+                        </div>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: event.type === 'weapon_used' && event.weapon === 'Espada'
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. EVENTOS DE CONSULTA -->
+            <div>
+                <h4 style="color: #38bdf8; margin-bottom: 6px;">2. Eventos de Consulta de Entidad (`entity`)</h4>
+                <p style="margin-bottom: 8px; color: #aaa;">
+                    Funciones de lectura utilizadas en el campo de **Condición** para consultar el estado actual de la entidad antes de ejecutar la macro.
+                </p>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code>entity.getHp()</code> y <code>entity.getMaxHp()</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Devuelven el valor actual y el valor máximo de Puntos de Vida de la entidad.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.getHp() &lt; (entity.getMaxHp() * 0.25)
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code>entity.getMana()</code> y <code>entity.getMaxMana()</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Devuelven el valor actual y el valor máximo de Maná de la entidad.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.getMana() &gt;= 10
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code>entity.getStatValue("NombreStat")</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Retorna el valor numérico base de una estadística específica de la entidad (ej: "Fuerza", "Destreza").</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.getStatValue("Fuerza") &gt; 15
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code>entity.hasAbility("NombreHabilidad")</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Devuelve <code>true</code> si la entidad posee registrada una habilidad específica.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.hasAbility("Curación Menor")
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code>entity.hasWeapon("NombreArma")</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Devuelve <code>true</code> si la entidad cuenta con un arma determinada en su inventario.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.hasWeapon("Espada Legendaria")
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code>entity.hasItem("NombreObjeto")</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Devuelve <code>true</code> si la entidad lleva un objeto modificador en su inventario.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.hasItem("Poción de Vida")
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code>entity.hasStatus("NombreEstado")</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Devuelve <code>true</code> si la entidad tiene activo un estado o condición alterada.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.hasStatus("Quemado")
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. FUNCIONES DE MODIFICACIÓN -->
+            <div>
+                <h4 style="color: #38bdf8; margin-bottom: 6px;">3. Funciones de Modificación (`entity`)</h4>
+                <p style="margin-bottom: 8px; color: #aaa;">
+                    Métodos ejecutados en el campo de **Acción** que alteran el estado, estadísticas o inventario de la entidad.
+                </p>
+
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code>entity.modifyHp(monto)</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Suma o resta Puntos de Vida (positivos curan, negativos infligen daño). Respeta automáticamente el rango 0 a Vida Máxima.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.modifyHp(-10);
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code>entity.modifyMana(monto)</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Incrementa o reduce la reserva de Maná actual respetando el valor máximo.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.modifyMana(5);
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code>entity.addAbility(objetoHabilidad)</code> y <code>entity.removeAbility("NombreHabilidad")</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Añade una nueva habilidad pasándole una planilla o elimina una existente por su nombre.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.addAbility({ name: 'Rayo Solar', mana: 4, type: 'flat_damage', flatDamage: 12 });<br>
+                            Ejemplo: entity.removeAbility('Rayo Solar');
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code>entity.addWeapon(objetoArma)</code> y <code>entity.removeWeapon("NombreArma")</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Agrega una planilla de arma al inventario o retira un arma especificando su nombre.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.addWeapon({ name: 'Hacha de Guerra', type: 'dice_damage', diceQty: 1, diceType: 12, statUsed: 'Fuerza' });<br>
+                            Ejemplo: entity.removeWeapon('Hacha de Guerra');
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code>entity.addItem(objetoItem)</code> y <code>entity.removeItem("NombreObjeto")</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Añade un objeto modificador al inventario o elimina uno mediante su nombre.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.addItem({ name: 'Anillo de Fuerza', targetStat: 'Fuerza', op: 'add', val: 2 });<br>
+                            Ejemplo: entity.removeItem('Anillo de Fuerza');
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
+                        <code>entity.addStatus(objetoEstado)</code> y <code>entity.removeStatus("NombreEstado")</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Aplica un nuevo estado alterado pasándole un objeto estructurado o lo remueve por nombre.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.addStatus({ name: 'Envenenado', duration: 3, type: 'flat_damage', flatDamage: 5 });<br>
+                            Ejemplo: entity.removeStatus('Envenenado');
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. TODAS LAS PLANILLAS UTILIZABLES -->
+            <div>
+                <h4 style="color: #38bdf8; margin-bottom: 6px;">4. Planillas de Datos Estructuradas</h4>
+                <p style="margin-bottom: 8px; color: #aaa;">
+                    Especificaciones detalladas de los objetos JavaScript requeridos al llamar a métodos como <code>addStatus</code>, <code>addAbility</code>, <code>addWeapon</code> o <code>addItem</code>.
+                </p>
+
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+
+                    <!-- Planilla de Estado -->
+                    <div style="background: #18181b; padding: 10px; border-radius: 6px; border: 1px solid #3f3f46;">
+                        <h5 style="color: #eab308; margin: 0 0 4px 0;">A. Planilla de Estado (Status)</h5>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 8pt; color: #ccc; margin-top: 6px;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid #444; text-align: left;">
+                                    <th style="padding: 4px;">Campo</th>
+                                    <th style="padding: 4px;">Tipo</th>
+                                    <th style="padding: 4px;">Valores Permitidos</th>
+                                    <th style="padding: 4px;">Obligatorio / Opcional</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>name</code></td>
+                                    <td style="padding: 4px;">String</td>
+                                    <td style="padding: 4px;">Texto libre (ej: <code>'Quemado'</code>)</td>
+                                    <td style="padding: 4px; color: #ef4444;">Obligatorio</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>duration</code></td>
+                                    <td style="padding: 4px;">Number</td>
+                                    <td style="padding: 4px;">Entero &gt; 0</td>
+                                    <td style="padding: 4px; color: #ef4444;">Obligatorio</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>type</code></td>
+                                    <td style="padding: 4px;">String</td>
+                                    <td style="padding: 4px;"><code>'flat_damage'</code>, <code>'dice_damage'</code>, <code>'heal_flat'</code>, <code>'heal_dice'</code>, <code>'stat_mod'</code></td>
+                                    <td style="padding: 4px; color: #ef4444;">Obligatorio</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>flatDamage</code></td>
+                                    <td style="padding: 4px;">Number</td>
+                                    <td style="padding: 4px;">Cualquier número</td>
+                                    <td style="padding: 4px; color: #eab308;">Obligatorio si type es 'flat_damage' o 'heal_flat'</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>diceQty</code></td>
+                                    <td style="padding: 4px;">Number</td>
+                                    <td style="padding: 4px;">Entero &gt; 0</td>
+                                    <td style="padding: 4px; color: #eab308;">Obligatorio si type es 'dice_damage' o 'heal_dice'</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>diceType</code></td>
+                                    <td style="padding: 4px;">Number / String</td>
+                                    <td style="padding: 4px;">4, 6, 8, 10, 12, 20</td>
+                                    <td style="padding: 4px; color: #eab308;">Obligatorio si type es 'dice_damage' o 'heal_dice'</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>targetStat</code></td>
+                                    <td style="padding: 4px;">String</td>
+                                    <td style="padding: 4px;">Nombre del stat (ej: <code>'Fuerza'</code>)</td>
+                                    <td style="padding: 4px; color: #eab308;">Obligatorio si type es 'stat_mod'</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>op</code></td>
+                                    <td style="padding: 4px;">String</td>
+                                    <td style="padding: 4px;"><code>'add'</code>, <code>'subtract'</code></td>
+                                    <td style="padding: 4px; color: #eab308;">Obligatorio si type es 'stat_mod'</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px;"><code>statVal</code></td>
+                                    <td style="padding: 4px;">Number</td>
+                                    <td style="padding: 4px;">Cualquier número</td>
+                                    <td style="padding: 4px; color: #eab308;">Obligatorio si type es 'stat_mod'</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Planilla de Habilidad -->
+                    <div style="background: #18181b; padding: 10px; border-radius: 6px; border: 1px solid #3f3f46;">
+                        <h5 style="color: #eab308; margin: 0 0 4px 0;">B. Planilla de Habilidad (Ability)</h5>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 8pt; color: #ccc; margin-top: 6px;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid #444; text-align: left;">
+                                    <th style="padding: 4px;">Campo</th>
+                                    <th style="padding: 4px;">Tipo</th>
+                                    <th style="padding: 4px;">Valores Permitidos</th>
+                                    <th style="padding: 4px;">Obligatorio / Opcional</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>name</code></td>
+                                    <td style="padding: 4px;">String</td>
+                                    <td style="padding: 4px;">Texto libre</td>
+                                    <td style="padding: 4px; color: #ef4444;">Obligatorio</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>mana</code></td>
+                                    <td style="padding: 4px;">Number</td>
+                                    <td style="padding: 4px;">Entero &gt;= 0</td>
+                                    <td style="padding: 4px; color: #22c55e;">Opcional (Defecto: 0)</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>type</code></td>
+                                    <td style="padding: 4px;">String</td>
+                                    <td style="padding: 4px;"><code>'dice_damage'</code>, <code>'flat_damage'</code>, <code>'heal_flat'</code>, <code>'heal_dice'</code>, <code>'stat_mod'</code></td>
+                                    <td style="padding: 4px; color: #ef4444;">Obligatorio</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>flatDamage</code></td>
+                                    <td style="padding: 4px;">Number</td>
+                                    <td style="padding: 4px;">Cualquier número</td>
+                                    <td style="padding: 4px; color: #eab308;">Obligatorio si type es 'flat_damage' o 'heal_flat'</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>diceQty</code> / <code>diceType</code></td>
+                                    <td style="padding: 4px;">Number / String</td>
+                                    <td style="padding: 4px;">Cantidad num. / 4, 6, 8, 10, 12, 20</td>
+                                    <td style="padding: 4px; color: #eab308;">Obligatorio si type es 'dice_damage' o 'heal_dice'</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>statUsed</code></td>
+                                    <td style="padding: 4px;">String</td>
+                                    <td style="padding: 4px;">Nombre del stat con el que escala el daño</td>
+                                    <td style="padding: 4px; color: #22c55e;">Opcional</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>targetStat</code> / <code>op</code> / <code>val</code> / <code>duration</code></td>
+                                    <td style="padding: 4px;">Varios</td>
+                                    <td style="padding: 4px;">Nombre stat / <code>'add'</code>, <code>'subtract'</code> / Número / Turnos</td>
+                                    <td style="padding: 4px; color: #eab308;">Obligatorio si type es 'stat_mod'</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px;"><code>appliedStatuses</code></td>
+                                    <td style="padding: 4px;">Array[Object]</td>
+                                    <td style="padding: 4px;">Lista de planillas de estado (Status)</td>
+                                    <td style="padding: 4px; color: #22c55e;">Opcional</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Planilla de Arma -->
+                    <div style="background: #18181b; padding: 10px; border-radius: 6px; border: 1px solid #3f3f46;">
+                        <h5 style="color: #eab308; margin: 0 0 4px 0;">C. Planilla de Arma (Weapon)</h5>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 8pt; color: #ccc; margin-top: 6px;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid #444; text-align: left;">
+                                    <th style="padding: 4px;">Campo</th>
+                                    <th style="padding: 4px;">Tipo</th>
+                                    <th style="padding: 4px;">Valores Permitidos</th>
+                                    <th style="padding: 4px;">Obligatorio / Opcional</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>name</code></td>
+                                    <td style="padding: 4px;">String</td>
+                                    <td style="padding: 4px;">Texto libre</td>
+                                    <td style="padding: 4px; color: #ef4444;">Obligatorio</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>type</code></td>
+                                    <td style="padding: 4px;">String</td>
+                                    <td style="padding: 4px;"><code>'dice_damage'</code>, <code>'flat_damage'</code></td>
+                                    <td style="padding: 4px; color: #ef4444;">Obligatorio</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>flatDamage</code></td>
+                                    <td style="padding: 4px;">Number</td>
+                                    <td style="padding: 4px;">Cualquier número</td>
+                                    <td style="padding: 4px; color: #eab308;">Obligatorio si type es 'flat_damage'</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>diceQty</code> / <code>diceType</code></td>
+                                    <td style="padding: 4px;">Number / String</td>
+                                    <td style="padding: 4px;">Cantidad num. / 4, 6, 8, 10, 12, 20</td>
+                                    <td style="padding: 4px; color: #eab308;">Obligatorio si type es 'dice_damage'</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>statUsed</code></td>
+                                    <td style="padding: 4px;">String</td>
+                                    <td style="padding: 4px;">Nombre del stat modificador</td>
+                                    <td style="padding: 4px; color: #22c55e;">Opcional</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px;"><code>appliedStatuses</code></td>
+                                    <td style="padding: 4px;">Array[Object]</td>
+                                    <td style="padding: 4px;">Lista de planillas de estado (Status)</td>
+                                    <td style="padding: 4px; color: #22c55e;">Opcional</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Planilla de Objeto Modificador -->
+                    <div style="background: #18181b; padding: 10px; border-radius: 6px; border: 1px solid #3f3f46;">
+                        <h5 style="color: #eab308; margin: 0 0 4px 0;">D. Planilla de Objeto Modificador (Item)</h5>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 8pt; color: #ccc; margin-top: 6px;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid #444; text-align: left;">
+                                    <th style="padding: 4px;">Campo</th>
+                                    <th style="padding: 4px;">Tipo</th>
+                                    <th style="padding: 4px;">Valores Permitidos</th>
+                                    <th style="padding: 4px;">Obligatorio / Opcional</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>name</code></td>
+                                    <td style="padding: 4px;">String</td>
+                                    <td style="padding: 4px;">Texto libre</td>
+                                    <td style="padding: 4px; color: #ef4444;">Obligatorio</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>targetStat</code></td>
+                                    <td style="padding: 4px;">String</td>
+                                    <td style="padding: 4px;">Estadística a modificar (ej: <code>'Fuerza'</code>)</td>
+                                    <td style="padding: 4px; color: #ef4444;">Obligatorio</td>
+                                </tr>
+                                <tr style="border-bottom: 1px solid #222;">
+                                    <td style="padding: 4px;"><code>op</code></td>
+                                    <td style="padding: 4px;">String</td>
+                                    <td style="padding: 4px;"><code>'add'</code>, <code>'subtract'</code></td>
+                                    <td style="padding: 4px; color: #ef4444;">Obligatorio</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 4px;"><code>val</code></td>
+                                    <td style="padding: 4px;">Number</td>
+                                    <td style="padding: 4px;">Monto numérico de ajuste</td>
+                                    <td style="padding: 4px; color: #ef4444;">Obligatorio</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- 5. 4 EJEMPLOS QUE SUBEN EN COMPLEJIDAD -->
+            <div>
+                <h4 style="color: #38bdf8; margin-bottom: 6px;">5. Ejemplos Prácticos Nivelados (Subiendo en Complejidad)</h4>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+
+                    <!-- Nivel 1: Uso básico en entidad propia -->
+                    <div style="background: #111; padding: 10px; border-radius: 6px; border: 1px solid #22c55e; margin-bottom: 12px;">
+                        <strong style="color: #22c55e; display: block; margin-bottom: 4px;">Nivel 1: Uso Básico en Entidad Propia</strong>
+                        <p style="margin: 0 0 6px 0; color: #aaa;">Se activa al reducirse los puntos de vida por debajo de 10 unidades y contar con una Poción de Vida en el inventario. Restaura 15 HP inmediatamente.</p>
+                        <div style="font-family: monospace; font-size: 8pt; color: #ddd;">
+                            <strong>Condición:</strong><br>
+                            <code style="color: #38bdf8;">event.type === 'hp_decreased' &amp;&amp; entity.getHp() &lt; 10 &amp;&amp; entity.hasItem('Poción de Vida')</code><br><br>
+                            <strong>Acción:</strong><br>
+                            <code style="color: #eab308;">entity.modifyHp(15);</code>
+                        </div>
+                    </div>
+
+                    <!-- Nivel 2: Modificación avanzada de la entidad propia -->
+                    <div style="background: #111; padding: 10px; border-radius: 6px; border: 1px solid #38bdf8; margin-bottom: 12px;">
+                        <strong style="color: #38bdf8; display: block; margin-bottom: 4px;">Nivel 2: Modificación Avanzada de la Entidad Propia</strong>
+                        <p style="margin: 0 0 6px 0; color: #aaa;">Al recibir el estado 'Envenenado', la entidad elimina dicho estado, equipa un objeto de resistencia y recupera reserva de maná en una sola ejecución.</p>
+                        <div style="font-family: monospace; font-size: 8pt; color: #ddd;">
+                            <strong>Condición:</strong><br>
+                            <code style="color: #38bdf8;">event.type === 'status_added' &amp;&amp; event.status === 'Envenenado' &amp;&amp; entity.getMana() &gt;= 5</code><br><br>
+                            <strong>Acción:</strong><br>
+                            <code style="color: #eab308;">
+                                entity.removeStatus('Envenenado');<br>
+                                entity.addItem({ name: 'Antídoto Pasivo', targetStat: 'Constitución', op: 'add', val: 2 });<br>
+                                entity.modifyMana(10);
+                            </code>
+                        </div>
+                    </div>
+
+                    <!-- Nivel 3: Funciones aplicadas a la Otra Entidad (Contraataque / Reacción) -->
+                    <div style="background: #111; padding: 10px; border-radius: 6px; border: 1px solid #eab308; margin-bottom: 12px;">
+                        <strong style="color: #eab308; display: block; margin-bottom: 4px;">Nivel 3: Interacción Directa con la Otra Entidad (Atacante)</strong>
+                        <p style="margin: 0 0 6px 0; color: #aaa;">Se dispara al recibir daño de vida (<code>hp_decreased</code>). Evalúa si el atacante posee un estado o estadística específica y le aplica efectos o modificaciones directamente a él (<code>event.attackerData</code>).</p>
+                        <div style="font-family: monospace; font-size: 8pt; color: #ddd;">
+                            <strong>Condición:</strong><br>
+                            <code style="color: #38bdf8;">event.type === 'hp_decreased' &amp;&amp; event.attackerData &amp;&amp; !event.attackerData.hasStatus('Armadura Rota')</code><br><br>
+                            <strong>Acción:</strong><br>
+                            <code style="color: #eab308;">
+                                // Aplica un estado negativo y drena maná directamente al atacante<br>
+                                event.attackerData.addStatus({ name: 'Armadura Rota', duration: 2, type: 'stat_mod', targetStat: 'Defensa', op: 'subtract', statVal: 4 });<br>
+                                event.attackerData.modifyMana(-5);
+                            </code>
+                        </div>
+                    </div>
+
+                    <!-- Nivel 4: Modificación simultánea y cruzada (Atacante u Objetivo + Propio) -->
+                    <div style="background: #111; padding: 10px; border-radius: 6px; border: 1px solid #f97316; margin-bottom: 12px;">
+                        <strong style="color: #f97316; display: block; margin-bottom: 4px;">Nivel 4: Modificación Simultánea y Cruzada entre Entidades</strong>
+                        <p style="margin: 0 0 6px 0; color: #aaa;">Al golpear a un objetivo con un arma o habilidad, consulta el HP del objetivo (<code>event.targetData</code>) para ejecutar robos de vida, drenaje o transferencia de estados entre ambas entidades.</p>
+                        <div style="font-family: monospace; font-size: 8pt; color: #ddd;">
+                            <strong>Condición:</strong><br>
+                            <code style="color: #38bdf8;">event.type === 'weapon_used' &amp;&amp; event.targetData &amp;&amp; event.targetData.getHp() &gt; 20</code><br><br>
+                            <strong>Acción:</strong><br>
+                            <code style="color: #eab308;">
+                                // Drena vida del objetivo y cura a la propia entidad<br>
+                                event.targetData.modifyHp(-8);<br>
+                                entity.modifyHp(8);<br><br>
+                                // Aplica estado de sangrado al objetivo y agrega una habilidad temporal al usuario<br>
+                                event.targetData.addStatus({ name: 'Sangrado', duration: 3, type: 'flat_damage', flatDamage: 4 });<br>
+                                entity.addAbility({ name: 'Frenesí de Sangre', mana: 2, type: 'flat_damage', flatDamage: 6 });
+                            </code>
+                        </div>
+                    </div>
+
+                    <!-- Nivel 5: Lógica avanzada con JS, Fórmulas y Control de ambas entidades -->
+                    <div style="background: #111; padding: 10px; border-radius: 6px; border: 1px solid #ef4444; margin-bottom: 12px;">
+                        <strong style="color: #ef4444; display: block; margin-bottom: 4px;">Nivel 5: Lógica Compleja con JS, Fórmulas y Alteraciones en Ambos Lados</strong>
+                        <p style="margin: 0 0 6px 0; color: #aaa;">Mecánica avanzada de respuesta/castigo. Compara las estadísticas del atacante con las propias, calcula valores escalados y altera los inventarios, estados o recursos de ambas entidades dinámicamente.</p>
+                        <div style="font-family: monospace; font-size: 8pt; color: #ddd;">
+                            <strong>Propiedades:</strong> Ejecución única: <code>[X]</code><br>
+                            <strong>Condición:</strong><br>
+                            <code style="color: #38bdf8;">event.type === 'hp_decreased' &amp;&amp; event.attackerData &amp;&amp; entity.getHp() &lt;= (entity.getMaxHp() * 0.4)</code><br><br>
+                            <strong>Acción:</strong><br>
+                            <code style="color: #eab308;">
+                                // 1. Comparación de estadísticas entre ambas entidades mediante funciones de lectura<br>
+                                let attackerStr = event.attackerData.getStatValue('Fuerza') || 10;<br>
+                                let ownConst = entity.getStatValue('Constitución') || 10;<br>
+                                let diff = Math.max(1, attackerStr - ownConst);<br><br>
+                                // 2. Modificaciones directas en la entidad atacante<br>
+                                event.attackerData.modifyMana(-diff * 2);<br>
+                                event.attackerData.addStatus({<br>
+                                &nbsp;&nbsp;name: 'Maldición de Retroceso',<br>
+                                &nbsp;&nbsp;duration: 2,<br>
+                                &nbsp;&nbsp;type: 'flat_damage',<br>
+                                &nbsp;&nbsp;flatDamage: diff<br>
+                                });<br><br>
+                                // 3. Modificaciones y mejoras en la entidad propia<br>
+                                entity.modifyHp(diff * 3);<br>
+                                if (event.attackerData.hasStatus('Enfurecido')) {<br>
+                                &nbsp;&nbsp;event.attackerData.removeStatus('Enfurecido');<br>
+                                &nbsp;&nbsp;entity.addStatus({ name: 'Calma Robada', duration: 2, type: 'stat_mod', targetStat: 'Fuerza', op: 'add', statVal: 3 });<br>
+                                }
+                            </code>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SELECCIONAR TABLERO -->
+<div id="moveBoardModal" class="modal hidden">
+
+    <div class="modal-content">
+
+        <h2>Mover a tablero</h2>
+
+        <select id="targetBoardSelect">
+        </select>
+
+        <button id="confirmMoveBoardBtn">
+            Mover
+        </button>
+
+        <button onclick="closeMoveBoardModal()">
+            Cancelar
+        </button>
+
+    </div>
+
+</div>
+
+<!-- MENU DE ACCIONES -->
+<div id="entityMenu" class="entity-menu hidden">
+
+    <button id="rollStatMenuBtn" onclick="openStatRollModal()">
+        Tirada de Stat
+    </button>
+
+    <button id="attackBtn">
+        Atacar
+    </button>
+
+    <button id="useSkillBtn" onclick="openSkillModal()">
+        Usar Habilidad
+    </button>
+
+    <button id="moveBoardBtn">
+        Mover a tablero
+    </button>
+
+    <button id="editBtn">
+        Editar
+    </button>
+
+    <button id="duplicateBtn">
+        Duplicar
+    </button>
+
+    <button id="deleteBtn">
+        Eliminar
+    </button>
+
+</div>
+
+<!-- MODAL TIRADA DE STAT -->
+<div id="statRollModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 320px; text-align: center;">
+        <h2>Tirada de Estadística</h2>
+        <p id="statRollEntityName" style="color: #a3a3a3; font-size: 9pt; margin-top: -8px;"></p>
+
+        <div style="margin: 15px 0; text-align: left;">
+            <label style="font-size: 8.5pt; color: #a3a3a3;">Estadística:</label>
+
+            <select id="statRollSelect" onchange="updateStatRollPreview()" style="width: 100%; padding: 6px; margin-top: 4px;">
+            </select>
+        </div>
+
+        <!-- Previsualización del cálculo del stat -->
+        <div id="statRollPreview" style="background: #18181b; border: 1px solid #27272a; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 8.5pt; text-align: left;">
+            <div>Valor base: <span id="statBaseVal" style="font-weight: bold; color: #fff;">10</span></div>
+            <div>Mod. Objetos/Estados: <span id="statModsVal" style="font-weight: bold; color: #eab308;">+0</span></div>
+            <div>Valor Total: <span id="statTotalVal" style="font-weight: bold; color: #3b82f6;">10</span></div>
+            <div style="margin-top: 6px; font-weight: bold; color: #22c55e; font-size: 10pt;">
+                Bono D&D: <span id="statBonusVal">+0</span>
+            </div>
+            <div style="margin-top: 8px; border-top: 1px dashed #3f3f46; padding-top: 6px;">
+                <label style="font-size: 7.5pt; color: #a3a3a3; display: block;">Fórmula del Bono ('x' = 'Valor total'):</label>
+                <input type="text" id="statFormulaInput" placeholder="floor((x - 10) / 2)" 
+                    oninput="onFormulaChange()" 
+                    style="width: 100%; padding: 4px; font-size: 8pt; background: #09090b; color: #38bdf8; border: 1px solid #3f3f46; border-radius: 4px; font-family: monospace;">
+            </div>
+        </div>
+
+        <!-- Animación Dado D20 -->
+        <div class="d20-container" style="margin: 10px auto;">
+            <div id="d20Stat" class="d20-shape">
+                <span id="d20StatResultText">20</span>
+            </div>
+        </div>
+
+        <div id="statRollTotalDisplay" style="font-size: 12pt; font-weight: bold; color: #22c55e; margin: 10px 0; display: none;">
+            Resultado: -
+        </div>
+
+        <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px;">
+            <button id="rollStatActionBtn" onclick="executeStatRoll()" style="flex: 1;">Lanzar d20</button>
+            <button onclick="closeStatRollModal()" style="background: #333; color: #ccc;">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL ATAQUE -->
+<div id="attackModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 420px; text-align: left;">
+        <h2>Acción de Ataque</h2>
+        <p id="attackEntityName" style="color: #a3a3a3; font-size: 9pt; margin-top: -8px; margin-bottom: 12px;"></p>
+
+        <!-- Selección de Ataque -->
+        <div style="margin-bottom: 12px;">
+            <label style="font-size: 8.5pt; color: #a3a3a3; display: block; margin-bottom: 4px;">Seleccionar Arma o Habilidad:</label>
+            <select id="attackSelect" onchange="updateAttackPreview()" style="width: 100%; padding: 6px; background: #18181b; color: #fff; border: 1px solid #3f3f46; border-radius: 4px;">
+            </select>
+        </div>
+
+        <!-- Previsualización / Ficha de Detalles del Ataque -->
+        <div id="attackDetailsPreview" style="background: #18181b; border: 1px solid #27272a; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 8.5pt;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span>Tipo de Daño:</span>
+                <strong id="atkTypeDisplay" style="color: #38bdf8;">-</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span>Daño Base / Dados:</span>
+                <strong id="atkBaseDisplay" style="color: #fff;">-</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span>Escala con Stat:</span>
+                <strong id="atkStatDisplay" style="color: #eab308;">-</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span>Bono de Estadística:</span>
+                <strong id="atkBonusDisplay" style="color: #22c55e;">+0</strong>
+            </div>
+            
+            <!-- NUEVO: Campo para modificar la fórmula del bono en Ataque -->
+            <div id="attackFormulaContainer" style="margin-top: 8px; border-top: 1px dashed #3f3f46; padding-top: 6px;">
+                <label style="font-size: 7.5pt; color: #a3a3a3; display: block;">Fórmula del Bono ('x' = 'Valor total del Stat'):</label>
+                <input type="text" id="attackFormulaInput" placeholder="floor((x - 10) / 2)" 
+                    oninput="onAttackFormulaChange()" 
+                    style="width: 100%; padding: 4px; font-size: 8pt; background: #09090b; color: #38bdf8; border: 1px solid #3f3f46; border-radius: 4px; font-family: monospace;">
+            </div>
+
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px; margin-top: 6px;">
+                <span>Costo de Maná:</span>
+                <strong id="atkManaDisplay" style="color: #a855f7;">0 MP</strong>
+            </div>
+            <div style="margin-top: 8px; border-top: 1px dashed #3f3f46; padding-top: 6px;">
+                <span style="color: #a3a3a3; display: block; margin-bottom: 2px;">Estados que infligirá:</span>
+                <div id="atkStatusesDisplay" style="color: #f43f5e; font-weight: bold;">Ninguno</div>
+            </div>
+        </div>
+
+        <!-- Botones de Acción -->
+        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px;">
+            <button onclick="startTargetSelection()" style="background: #ef4444; color: #fff;">Seleccionar Objetivo</button>
+            <button onclick="closeAttackModal()" style="background: #333; color: #ccc;">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL USAR HABILIDAD -->
+<div id="skillModal" class="modal hidden">
+    <div class="modal-content" style="max-width: 420px; text-align: left;">
+        <h2>Usar Habilidad</h2>
+        <p id="skillEntityName" style="color: #a3a3a3; font-size: 9pt; margin-top: -8px; margin-bottom: 12px;"></p>
+
+        <!-- Selección de Habilidad -->
+        <div style="margin-bottom: 12px;">
+            <label style="font-size: 8.5pt; color: #a3a3a3; display: block; margin-bottom: 4px;">Seleccionar Habilidad de Stat:</label>
+            <select id="skillSelect" onchange="updateSkillPreview()" style="width: 100%; padding: 6px; background: #18181b; color: #fff; border: 1px solid #3f3f46; border-radius: 4px;">
+            </select>
+        </div>
+
+        <!-- Previsualización de la Habilidad -->
+        <div id="skillDetailsPreview" style="background: #18181b; border: 1px solid #27272a; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 8.5pt;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span>Stat Afectado:</span>
+                <strong id="skillTargetStatDisplay" style="color: #38bdf8;">-</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span>Modificación:</span>
+                <strong id="skillModDisplay" style="color: #eab308;">-</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span>Duración:</span>
+                <strong id="skillDurationDisplay" style="color: #fff;">1 Turno(s)</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span>Costo de Maná:</span>
+                <strong id="skillManaDisplay" style="color: #a855f7;">0 MP</strong>
+            </div>
+            <div style="margin-top: 8px; border-top: 1px dashed #3f3f46; padding-top: 6px;">
+                <span style="color: #a3a3a3; display: block; margin-bottom: 2px;">Estados Adicionales a aplicar:</span>
+                <div id="skillExtraStatusesDisplay" style="color: #f43f5e; font-weight: bold;">Ninguno</div>
+            </div>
+        </div>
+
+        <!-- Botones de Acción -->
+        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px;">
+            <button onclick="startSkillTargetSelection()" style="background: #a855f7; color: #fff;">Seleccionar Objetivo</button>
+            <button onclick="closeSkillModal()" style="background: #333; color: #ccc;">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<!-- TOOLTIP -->
+<div id="entityTooltip" class="entity-tooltip hidden"></div>
+
+<div id="minimized-container"></div>
+
+<!-- MENSAJE FLOTANTE EN LA PARTE SUPERIOR (Mana / Avisos) -->
+<div id="toastNotification" class="toast-notification hidden"></div>
+
+<!-- BANNER DE SELECCIÓN DE OBJETIVO -->
+<div id="targetBanner" class="target-banner hidden">
+    <span>Selecciona al objetivo</span>
+    <button id="cancelTargetBtn" onclick="cancelTargetSelection()">Cancelar</button>
+</div>
+
+<!-- CONTENEDOR PARA DAÑO FLOTANTE EN LOS TOKENS -->
+<div id="floating-text-container"></div>
+
+<!-- OVERLAY DE ANIMACIÓN DE DADOS -->
+<div id="diceRollOverlay" class="dice-roll-overlay hidden">
+    <div class="dice-roll-card">
+        <h3 id="diceRollTitle" style="color: #a3a3a3; font-size: 11pt; margin: 0; text-transform: uppercase;">Tirando Dados...</h3>
+        <div id="diceRollDisplay" class="dice-number-display rolling">1d20</div>
+        <div id="diceRollDetails" style="color: #e4e4e7; font-size: 10pt; min-height: 20px;"></div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</html>
