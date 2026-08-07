@@ -2198,6 +2198,7 @@ function openAttackModal() {
     select.selectedIndex = 0;
 
     updateAttackPreview();
+    document.getElementById("critEnabled").checked = true;
     toggleModal("attackModal", true);
 }
 
@@ -2217,13 +2218,10 @@ function updateAttackPreview() {
     if (attack.statUsed) {
         if (formulaContainer) formulaContainer.style.display = "block";
         const statInfo = getEffectiveStatValue(entityData, attack.statUsed);
-        
         if (formulaInput) {
             formulaInput.value = attack.customFormula ?? (getStat(entityData, attack.statUsed)?.formula || "floor((x - 10) / 2)");
         }
-
         currentAttackCalculatedBonus = calculateFormulaBonus(statInfo.totalVal, formulaInput?.value);
-
         updateElementText("atkStatDisplay", `${attack.statUsed} (Total: ${statInfo.totalVal})`);
         updateElementText("atkBonusDisplay", `${currentAttackCalculatedBonus >= 0 ? '+' : ''}${currentAttackCalculatedBonus}`);
     } else {
@@ -2238,12 +2236,32 @@ function updateAttackPreview() {
     updateElementText("atkBaseDisplay", isDice ? `${attack.diceQty || 1}d${attack.diceType || 6}` : `${attack.flatDamage || 0} pts`);
     updateElementText("atkManaDisplay", `${attack.mana || 0} MP`);
 
+    const critCheck = document.getElementById("critEnabled");
+    critCheck.checked = true;
+
+    const critModeSelect = document.getElementById("critMode");
+    const maxOption = critModeSelect.querySelector('option[value="max"]');
+
+    if (attack.type !== "dice_damage") {
+        maxOption.disabled = true;
+        maxOption.textContent = "Máximo (Solo dados)";
+        if (critModeSelect.value === "max") {
+            critModeSelect.value = "percent";
+        }
+    } else {
+        maxOption.disabled = false;
+        maxOption.textContent = "Valor Máximo de Dados";
+    }
+
     const statusesDisplay = document.getElementById("atkStatusesDisplay");
     if (statusesDisplay) {
         statusesDisplay.textContent = attack.appliedStatuses?.length 
-            ? attack.appliedStatuses.map(s => `${s.name} (${s.turns || s.duration || s.turnsRemaining || 1} ${s.turns === 1 ? 'turno' : 'turnos'})`).join(", ")
+            ? attack.appliedStatuses.map(s => `${s.name} (${s.duration || 1} t)`).join(", ")
             : "Ninguno";
     }
+
+    toggleCritUI();
+    updateCritUI();
 }
 
 function startTargetSelection() {
@@ -2270,10 +2288,57 @@ function cancelTargetSelection() {
     toggleModal("targetBanner", false);
 }
 
+function toggleCritUI() {
+    const isEnabled = document.getElementById("critEnabled").checked;
+    const critOptions = document.getElementById("critOptions");
+    const statusText = document.querySelector("#critEnabled + span");
+
+    if (isEnabled) {
+        critOptions.style.opacity = "1";
+        critOptions.style.pointerEvents = "auto";
+        if (statusText) statusText.textContent = "ACTIVO";
+    } else {
+        critOptions.style.opacity = "0.3";
+        critOptions.style.pointerEvents = "none";
+        if (statusText) statusText.textContent = "INACTIVO";
+    }
+}
+
+function updateCritUI() {
+    const mode = document.getElementById("critMode").value;
+    const label = document.getElementById("critThresholdLabel");
+    const container = document.getElementById("critThresholdContainer");
+
+    if (mode === "max") {
+        container.style.visibility = "hidden";
+    } else {
+        container.style.visibility = "visible";
+        if (mode === "percent") {
+            label.textContent = "Probabilidad %:";
+        } else if (mode === "treshold") {
+            label.textContent = "Si daño >= :";
+        }
+    }
+}
+
+function calculateCritDamage(formula, baseDamage, statBonus, totalStatValue) {
+    const rawFormula = formula.trim() || "damage * 2";
+    try {
+        const fn = new Function("damage", "bonus", "x", "Math", `
+            "use strict";
+            return (${rawFormula.replace(/floor|ceil|round|abs|max|min/g, m => `Math.${m}`)});
+        `);
+        const result = fn(baseDamage, statBonus, totalStatValue, Math);
+        return Math.floor(result);
+    } catch (e) {
+        console.error("Error en fórmula de crítico:", e);
+        return baseDamage * 2;
+    }
+}
+
 function executeAttackOnTarget(targetToken) {
     const { attackerToken, attackData: atk } = pendingAttack;
     const attackerData = attackerToken.entityData;
-
     const targetData = targetToken.entityData;
 
     if (atk.mana > 0) {
@@ -2281,54 +2346,60 @@ function executeAttackOnTarget(targetToken) {
     }
 
     let baseDamage = 0;
-    let rollDetails = "";
+    let maxRollReached = false;
 
     if (atk.type === "dice_damage") {
         const qty = atk.diceQty || 1;
         const faces = parseInt(atk.diceType) || 8;
         const rolls = Array.from({ length: qty }, () => rollDice(faces));
         baseDamage = rolls.reduce((a, b) => a + b, 0);
-        rollDetails = `[Dados ${qty}d${faces}: ${rolls.join("+")} = ${baseDamage}]`;
-    } else if (atk.type === "flat_damage") {
-        baseDamage = atk.flatDamage || 0;
-        rollDetails = `[Daño Plano: ${baseDamage}]`;
+        
+        if (rolls.every(r => r === faces)) maxRollReached = true;
     } else {
-        baseDamage = rollDice(20);
-        rollDetails = `[Dado D20: ${baseDamage}]`;
+        baseDamage = atk.flatDamage || 0;
     }
 
-    const statBonus = atk.statUsed ? getEffectiveStatValue(attackerData, atk.statUsed).bonus : 0;
-    const totalDamage = Math.max(0, baseDamage + statBonus);
+    const statInfo = atk.statUsed ? getEffectiveStatValue(attackerData, atk.statUsed) : { bonus: 0, totalVal: 0 };
+    const statBonus = statInfo.bonus;
+
+    let isCrit = false;
+    const critEnabled = document.getElementById("critEnabled").checked;
+    
+    if (critEnabled) {
+        const mode = document.getElementById("critMode").value;
+        if (mode === "max" && maxRollReached) {
+            isCrit = true;
+        } else if (mode === "percent") {
+            const chance = parseInt(document.getElementById("critThreshold").value) || 15;
+            if (rollDice(100) <= chance) isCrit = true;
+        } else if (mode === "treshold") {
+            const threshold = parseInt(document.getElementById("critThreshold").value) || 15;
+            if ((baseDamage + statBonus) >= threshold) isCrit = true;
+        }
+    }
+
+    let finalDamage;
+    if (isCrit) {
+        const formula = document.getElementById("critFormulaInput").value;
+        finalDamage = calculateCritDamage(formula, baseDamage, statBonus, statInfo.totalVal);
+    } else {
+        finalDamage = Math.max(0, baseDamage + statBonus);
+    }
 
     const targetVidaStat = getStat(targetData, "Vida");
     if (targetVidaStat) {
-        updateFractionalStat(targetVidaStat, totalDamage, "consume");
+        updateFractionalStat(targetVidaStat, finalDamage, "consume");
         const [currentHp] = parseFractionalStat(targetVidaStat);
-        MacroSystem.emit('hp_decreased', targetData, { amount: totalDamage, current: currentHp, attackerData: attackerData });
+        MacroSystem.emit('hp_decreased', targetData, { amount: finalDamage, current: currentHp, attackerData: attackerData });
         updateEntityState(targetToken);
         syncEntityToState(targetToken);
     }
 
-    targetData.statuses = targetData.statuses || [];
-    const appliedStatusNames = (atk.appliedStatuses || []).map(s => {
-        targetData.statuses.push(structuredClone(s));
-        MacroSystem.emit('status_added', targetData, { status: s.name, statusData: s, entityData: attackerData });
-        return s.name;
-    });
-    if (appliedStatusNames.length) syncEntityToState(targetToken);
+    const color = isCrit ? "#fbbf24" : "#ef4444";
+    const critPrefix = isCrit ? "¡CRÍTICO! " : "";
+    showFloatingText(targetToken, `${critPrefix}-${finalDamage} HP`, color);
 
-    if (pendingAttack.category === 'weapon') {
-        MacroSystem.emit('weapon_used', attackerData, { weapon: atk.name, damage: totalDamage, targetData: targetToken.entityData });
-    } else if (pendingAttack.category === 'ability') {
-        MacroSystem.emit('ability_used', attackerData, { ability: atk.name, damage: totalDamage, targetData: targetToken.entityData });
-    }
-
-    showFloatingText(targetToken, `-${totalDamage} HP`, "#ef4444");
-
-    const statusMsg = appliedStatusNames.length ? ` e infligió [${appliedStatusNames.join(", ")}]` : "";
-    logEvent("attack", `${attackerData.name} usó ${atk.name} contra ${targetData.name} infligiendo ${totalDamage} de daño ${rollDetails} (Bono: ${statBonus >= 0 ? '+' : ''}${statBonus})${statusMsg}.`, {
-        attacker: attackerData.name, target: targetData.name, attackName: atk.name, totalDamage, statBonus
-    });
+    logEvent("attack", `${attackerData.name} atacó a ${targetData.name}. ${isCrit ? '¡GOLPE CRÍTICO!' : ''} Daño: ${finalDamage}`, { isCrit });
 
     cancelTargetSelection();
 }

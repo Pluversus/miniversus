@@ -1284,6 +1284,44 @@
             </div>
         </div>
 
+        <div id="critConfiguration" style="background: #18181b; border: 1px solid #27272a; padding: 12px; border-radius: 8px; margin-top: 10px;">
+    
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 8.5pt; font-weight: 600; color: #a3a3a3; text-transform: uppercase; letter-spacing: 0.5px;">Sistema de Críticos</span>
+                <label class="switch-container" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="critEnabled" onchange="toggleCritUI()" checked style="accent-color: #f87171;">
+                    <span style="font-size: 8pt; color: #f87171; font-weight: bold;">ACTIVO</span>
+                </label>
+            </div>
+
+            <div id="critOptions" style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #27272a; padding-top: 10px;">
+                <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 10px;">
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        <label style="font-size: 7.5pt; color: #888;">Modo de activación:</label>
+                        <select id="critMode" style="width: 100%; padding: 5px; background: #09090b; color: #fff; border: 1px solid #3f3f46; border-radius: 4px; font-size: 8.5pt;" onchange="updateCritUI()">
+                            <option value="max">Valor Máximo de Dados</option>
+                            <option value="percent">Porcentaje (%)</option>
+                            <option value="treshold">Superar número</option>
+                        </select>
+                    </div>
+                    
+                    <div id="critThresholdContainer" style="display: flex; flex-direction: column; gap: 4px;">
+                        <label id="critThresholdLabel" style="font-size: 7.5pt; color: #888;">Probabilidad:</label>
+                        <input type="number" id="critThreshold" value="15" style="width: 100%; padding: 5px; background: #09090b; color: #fff; border: 1px solid #3f3f46; border-radius: 4px; font-size: 8.5pt; text-align: center;">
+                    </div>
+                </div>
+                
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <div style="display: flex; justify-content: space-between;">
+                        <label style="font-size: 7.5pt; color: #888;">Fórmula de Daño Crítico:</label>
+                        <span style="font-size: 7pt; color: #555; font-family: monospace;">(damage, bonus, x)</span>
+                    </div>
+                    <input type="text" id="critFormulaInput" placeholder="damage * 2 + bonus" 
+                        style="width: 100%; padding: 6px; font-size: 8.5pt; background: #09090b; color: #f87171; border: 1px solid #3f3f46; border-radius: 4px; font-family: monospace;">
+                </div>
+            </div>
+        </div>
+
         <!-- Botones de Acción -->
         <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px;">
             <button onclick="startTargetSelection()" style="background: #ef4444; color: #fff;">Seleccionar Objetivo</button>
