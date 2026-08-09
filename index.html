@@ -27,16 +27,20 @@
         <button class="tool-btn main-trigger" id="menuTrigger">
             <img src="assets/menu.svg" alt="Menú" class="btn-icon">
         </button>
+
+        <button class="tool-btn main-trigger" onclick="resetSession()" title="Nueva Sesión (Borrar todo)">
+            <img src="assets/plus.svg" alt="Reset" class="btn-icon" style="filter: brightness(0) invert(1);">
+        </button>
     </div>
 
     <!-- Barra de Herramientas Flotante Secundaria (Oculta por defecto) -->
     <div id="floating-toolbar" class="hidden">
-        <button class="tool-btn sub-btn" data-panel="dice" title="Dados">
-            <img src="assets/dice.svg" alt="Dados" class="btn-icon"> 
-        </button>
-
         <button class="tool-btn sub-btn" data-panel="tools" title="Herramientas">
             <img src="assets/tools.svg" alt="Herramientas" class="btn-icon">
+        </button>
+
+        <button class="tool-btn sub-btn" data-panel="dice" title="Dados">
+            <img src="assets/dice.svg" alt="Dados" class="btn-icon"> 
         </button>
 
         <button class="tool-btn sub-btn" data-panel="map" title="Mapa">
@@ -90,8 +94,21 @@
             </div>
             <div class="window-content">
                 <label>Funciones de sesión</label>
-                <label class="file-btn">Importar<input type="file" id="importBoard" accept=".json"></label>
-                <button onclick="exportBoard()">Exportar</button>
+                <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                    <label class="file-btn" style="flex: 1;">Importar<input type="file" id="importBoard" accept=".json"></label>
+                    <button onclick="exportBoard()" style="flex: 1;">Exportar</button>
+                </div>
+                <hr style="border: 0; border-top: 1px solid #333; margin: 10px 0;">
+                <label>Autoguardado</label>
+                <div style="display: flex; align-items: center; gap: 10px; background: #1a1a1a; padding: 8px; border-radius: 6px;">
+                    <input type="checkbox" id="autoSaveToggle" onchange="updateAutoSaveSettings()">
+                    <span style="font-size: 8.5pt;">Activar autoguardado</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 5px;">
+                    <label style="font-size: 8pt; color: #888;">Frecuencia (minutos):</label>
+                    <input type="number" id="autoSaveIntervalInput" value="5" min="1" max="60" onchange="updateAutoSaveSettings()">
+                </div>
+                <hr style="border: 0; border-top: 1px solid #333; margin: 10px 0;">
                 <label>Medición de distancia</label>
                 <button id="measureToolBtn">Modo medición</button>
                 <label>Dibujar en el mapa</label>
@@ -120,7 +137,7 @@
             </div>
         </div>
 
-        <!-- BANCO DE ENTIDADES (VENTANA FLOTANTE) -->
+        <!-- BANCO DE ENTIDADES -->
         <div id="entityBankPanel" class="floating-window hidden" style="top: 140px; left: 200px; width: 320px;">
             <div class="window-header">
                 <span class="window-title">Banco de Entidades</span>
@@ -192,7 +209,7 @@
             </div>
             <div class="window-content">
                 <label>Imagen del mapa</label>
-                <label class="file-btn">Subir mapa<input type="file" id="imageUpload" accept="image/*"></label>
+                <label class="file-btn">Seleccionar imagen<input type="file" id="imageUpload" accept="image/*"></label>
                 <label>Tamaño del grid</label>
                 <input type="number" id="cellSizeInput" value="40">
                 <button onclick="resizeBoard()">Cambiar tamaño</button>
@@ -389,6 +406,26 @@
 
 <!-- MODALES -->
 
+<!-- MODAL BANCO DE IMÁGENES -->
+<div id="imageBankModal" class="modal hidden" style="z-index: 30000;">
+    <div class="modal-content" style="max-width: 600px; width: 90%;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2>Seleccionar Imagen</h2>
+            <button class="btn-cancel" onclick="closeImageBank()">×</button>
+        </div>
+        
+        <div id="imageBankGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; max-height: 400px; overflow-y: auto; padding: 10px; background: #111; border-radius: 8px; border: 1px solid #333;">
+        </div>
+
+        <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+            <label class="file-btn" style="background: var(--primary-color);">
+                + Subir nueva imagen
+                <input type="file" id="imageBankUpload" accept="image/*" style="display: none;" onchange="handleNewBankImage(event)">
+            </label>
+        </div>
+    </div>
+</div>
+
 <!-- CREAR O EDITAR ENTIDAD -->
 <div id="entityModal" class="modal fullscreen-modal hidden">
 
@@ -417,7 +454,7 @@
             <div class="input-group">
                 <label>Imagen / Token</label>
                 <label class="file-btn">
-                    Subir Foto
+                    Seleccionar Foto
                     <input type="file" id="editEntityImageInput" accept="image/*">
                 </label>
             </div>

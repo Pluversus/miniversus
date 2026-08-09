@@ -76,6 +76,11 @@ let drawing = false;
 let drawColor = "#ff0000";
 let drawSize = 3;
 
+let autoSaveTimer = null;
+const LOCAL_STORAGE_KEY = "miniversus_backup";
+
+const DEFAULT_ENTITY_IMAGE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%23888888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>';
+
 window.entityBank = window.entityBank || [];
 
 const entityTypesNames = {
@@ -87,17 +92,111 @@ const entityTypesNames = {
 const appState = {
     activeBoardId: null,
     boards: [],
-    sessionLog: []
+    sessionLog: [],
+    imageBank: [],
+    autoSaveEnabled: true,
+    autoSaveInterval: 5
 };
 
 // INICIALIZACION
-const defaultBoard = createEmptyBoard();
-appState.boards.push(defaultBoard);
-switchBoard(defaultBoard.id);
-resizeBoard();
-effectsLoop();
-updateLightingUI();
-selectLightingTool("light", lightToolBtn);
+function initApp() {
+    const loaded = loadFromLocalStorage();
+
+    if (!loaded) {
+        const defaultBoard = createEmptyBoard();
+        appState.boards.push(defaultBoard);
+        appState.activeBoardId = defaultBoard.id;
+        
+        document.getElementById("autoSaveToggle").checked = appState.autoSaveEnabled;
+        document.getElementById("autoSaveIntervalInput").value = appState.autoSaveInterval;
+        
+        switchBoard(defaultBoard.id);
+    }
+
+    resizeBoard();
+    effectsLoop();
+    updateLightingUI();
+    selectLightingTool("light", lightToolBtn);
+    
+    startAutoSaveTimer();
+}
+
+// SISTEMA DE PERSISTENCIA Y AUTOGUARDADO
+
+function saveToLocalStorage() {
+    const currentBoard = getCurrentBoard();
+    if (currentBoard) {
+        const notesTextArea = document.getElementById("sessionNotes");
+        if (notesTextArea) currentBoard.notes = notesTextArea.value;
+        currentBoard.map.drawData = drawCanvas.toDataURL();
+        currentBoard.entityBank = window.entityBank;
+    }
+
+    const dataToSave = {
+        appState: appState,
+        entityBank: window.entityBank
+    };
+
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
+    console.log("Sesión autoguardada:", new Date().toLocaleTimeString());
+    
+    logEvent('system', 'Sesión guardada automáticamente');
+}
+
+function loadFromLocalStorage() {
+    const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!savedData) return false;
+
+    try {
+        const data = JSON.parse(savedData);
+        
+        Object.assign(appState, data.appState);
+        
+        window.entityBank = data.entityBank || [];
+
+        document.getElementById("autoSaveToggle").checked = appState.autoSaveEnabled;
+        document.getElementById("autoSaveIntervalInput").value = appState.autoSaveInterval;
+
+        loadAppState(appState);
+        return true;
+    } catch (e) {
+        console.error("Error al cargar el backup:", e);
+        return false;
+    }
+}
+
+function updateAutoSaveSettings() {
+    let saveToggle = document.getElementById("autoSaveToggle").checked;
+    appState.autoSaveEnabled = saveToggle;
+    appState.autoSaveInterval = parseInt(document.getElementById("autoSaveIntervalInput").value) || 5;
+    
+    if (saveToggle === false) {
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
+    }
+
+    startAutoSaveTimer();
+}
+
+function startAutoSaveTimer() {
+    if (autoSaveTimer) clearInterval(autoSaveTimer);
+    
+    if (appState.autoSaveEnabled) {
+        const ms = appState.autoSaveInterval * 60 * 1000;
+        autoSaveTimer = setInterval(saveToLocalStorage, ms);
+    }
+}
+
+function resetSession() {
+    const confirm1 = confirm("¿Estás seguro de que quieres iniciar una nueva sesión?");
+    if (!confirm1) return;
+    
+    const confirm2 = confirm("¡ATENCIÓN! Esto borrará todos los tableros, entidades y progreso guardado en este navegador. Se recomienda exportar los datos. ¿Proceder?");
+    
+    if (confirm2) {
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
+        location.reload();
+    }
+}
 
 // FUNCIONES DE TABLERO
 function createEmptyBoard(name = "Tablero") {
@@ -255,13 +354,20 @@ function importBoard(e) {
 }
 
 function loadAppState(data) {
+    appState.imageBank = data.imageBank || [];
     appState.boards = data.boards || [];
     appState.sessionLog = data.sessionLog || [];
     appState.activeBoardId = data.activeBoardId || (appState.boards[0] ? appState.boards[0].id : null);
+    
+    const activeBoard = getCurrentBoard();
+    if (activeBoard && activeBoard.entityBank) {
+        window.entityBank = activeBoard.entityBank;
+    }
 
     renderBoardTabs();
     renderCurrentBoard();
     renderSessionLog();
+    renderEntityBank();
 }
 
 function renderCurrentBoard() {
@@ -280,7 +386,7 @@ function renderCurrentBoard() {
     const notesTextArea = document.getElementById("sessionNotes");
     if (notesTextArea) notesTextArea.value = boardData.notes || "";
 
-    mapImage.src = boardData.map.image;
+    mapImage.src = getImgData(boardData.map.image);
 
     applyVisionMode();
     document.querySelectorAll(".token").forEach(t => t.remove());
@@ -312,7 +418,7 @@ function renderCurrentBoard() {
 
 function boardStateToDom(boardData) {
     GRID_SIZE = boardData.map.gridSize;
-    mapImage.src = boardData.map.image;
+    mapImage.src = getImgData(boardData.map.image);
     board.style.width = `${boardData.map.width}px`;
     board.style.height = `${boardData.map.height}px`;
 
@@ -451,6 +557,81 @@ function updateTokenVisibility(){
 
         token.style.opacity = (visibleByFog && visibleByLight) ? "1" : "0";
     });
+}
+
+// BANCO DE IMAGENES
+
+let currentImageBankCallback = null;
+
+function openImageBank(callback) {
+    currentImageBankCallback = callback;
+    renderImageBank();
+    document.getElementById("imageBankModal").classList.remove("hidden");
+}
+
+function closeImageBank() {
+    document.getElementById("imageBankModal").classList.add("hidden");
+    currentImageBankCallback = null;
+}
+
+function renderImageBank() {
+    const grid = document.getElementById("imageBankGrid");
+    grid.innerHTML = "";
+
+    if (appState.imageBank.length === 0) {
+        grid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: #666; padding: 20px;">El banco está vacío. Sube una imagen para comenzar.</div>`;
+    }
+
+    appState.imageBank.forEach(img => {
+        const div = document.createElement("div");
+        div.className = "image-bank-item";
+        div.style.backgroundImage = `url(${img.data})`;
+        div.title = img.name;
+        div.onclick = () => {
+            if (currentImageBankCallback) currentImageBankCallback(img.id);
+            closeImageBank();
+        };
+        grid.appendChild(div);
+    });
+}
+
+function handleNewBankImage(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const newImg = {
+            id: 'img_' + crypto.randomUUID(),
+            name: file.name,
+            data: event.target.result // Base64
+        };
+        
+        appState.imageBank.push(newImg);
+        renderImageBank();
+
+        if (currentImageBankCallback) {
+            currentImageBankCallback(newImg.id);
+        }
+        closeImageBank();
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+}
+
+function getImgData(id) {
+    if (!id) return "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+    
+    if (typeof id === 'string' && id.startsWith('data:image')) {
+        return id;
+    }
+
+    const img = appState.imageBank.find(i => i.id === id);
+    if (img && img.data) {
+        return img.data;
+    }
+    
+    return "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
 }
 
 // REGISTROS
@@ -1199,7 +1380,6 @@ function setStatValue(entity, name, val) {
 // PERSONAJES
 const DEFAULT_STATS = ["Fuerza", "Agilidad", "Destreza", "Constitución", "Inteligencia", "Sabiduría", "Carisma", "Espíritu"];
 const DEFAULT_DND_STATS = DEFAULT_STATS.map(name => ({ name, value: 10 }));
-const DEFAULT_ENTITY_IMAGE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%23888888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>';
 
 const setInputs = (map) => Object.entries(map).forEach(([id, val]) => {
     const el = document.getElementById(id);
@@ -1702,7 +1882,7 @@ function confirmEntity() {
     }));
 
     const boardMap = getCurrentBoard().map;
-    const imageToUse = pendingEntity?.image || (editingEntity ? editingEntity.entityData.image : DEFAULT_ENTITY_IMAGE);
+    const imageToUse = pendingEntity?.image || DEFAULT_ENTITY_IMAGE;
 
     const finalData = {
         ...pendingEntity,
@@ -1740,6 +1920,7 @@ function createEntityToken(data) {
     const token = document.createElement("div");
     token.entityData = data;
     token.classList.add("token");
+    const imageUrl = getImgData(data.image);
     if (data.type === "enemy") token.classList.add("enemy");
 
     Object.assign(token.style, {
@@ -1747,7 +1928,7 @@ function createEntityToken(data) {
         height: `${data.size * GRID_SIZE}px`,
         left: `${data.x}px`,
         top: `${data.y}px`,
-        backgroundImage: `url(${data.image})`,
+        backgroundImage: `url(${imageUrl})`,
         backgroundSize: "cover",
         backgroundPosition: "center"
     });
@@ -1774,7 +1955,7 @@ function updateEntityVisuals(token) {
     const data = token.entityData;
     token.style.width = `${data.size * GRID_SIZE}px`;
     token.style.height = `${data.size * GRID_SIZE}px`;
-    token.style.backgroundImage = `url(${data.image})`;
+    token.style.backgroundImage = `url(${getImgData(data.image)})`;
 
     token.querySelector(".name-tag")?.remove();
     if (data.type === "character") {
@@ -1906,7 +2087,7 @@ function renderEntityBank() {
         item.dataset.bankIndex = index;
 
         item.innerHTML = `
-            <div class="bank-card-icon" style="background-image: url('${template.image}')"></div>
+            <div class="bank-card-icon" style="background-image: url('${getImgData(template.image)}')"></div>
             <div class="bank-card-info">
                 <span class="bank-card-name">${template.name}</span>
                 <span class="bank-card-sub">${template.clase || template.type}</span>
@@ -3133,62 +3314,44 @@ document.addEventListener("mousedown", (e) => {
 });
 
 // SUBIR IMÁGENES
-document.getElementById("imageUpload").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if(!file) return;
+document.getElementById("imageUpload").parentElement.onclick = (e) => {
+    e.preventDefault();
+    openImageBank((imageId) => {
+        const dataUrl = getImgData(imageId);
+        if (!dataUrl) return;
 
-    const reader = new FileReader();
-    reader.onload = function(event){
         const img = new Image();
-        img.onload = function(){
-            mapImage.src = event.target.result;
-
+        img.onload = function() {
             const b = getCurrentBoard();
-            const oldWidth = b.map.width;
-            const oldHeight = b.map.height;
+            if (!b) return;
 
+            b.map.image = imageId; 
+            
             imageWidth = img.width;
             imageHeight = img.height;
-
-            b.map.width = img.width;
-            b.map.height = img.height;
-            b.map.gridSize = GRID_SIZE;
-
-            if (oldWidth > 0 && oldHeight > 0) {
-                const factorX = img.width / oldWidth;
-                const factorY = img.height / oldHeight;
-
-                b.entities.forEach(entity => {
-                    entity.x = Math.round((entity.x * factorX) / GRID_SIZE) * GRID_SIZE;
-                    entity.y = Math.round((entity.y * factorY) / GRID_SIZE) * GRID_SIZE;
-                    entity.x = Math.max(0, Math.min(entity.x, img.width - (entity.size * GRID_SIZE)));
-                    entity.y = Math.max(0, Math.min(entity.y, img.height - (entity.size * GRID_SIZE)));
-                });
-            }
-
-            board.style.width = `${img.width}px`;
-            board.style.height = `${img.height}px`;
-
+            
+            b.map.width = img.width * (b.map.scale || 1);
+            b.map.height = img.height * (b.map.scale || 1);
+            
+            mapImage.src = dataUrl; 
+            board.style.width = `${b.map.width}px`;
+            board.style.height = `${b.map.height}px`;
+            
             syncGrid();
             renderCurrentBoard();
         };
-        img.src = event.target.result;
-        getCurrentBoard().map.image = event.target.result;
-    };
-    reader.readAsDataURL(file);
-});
+        img.onerror = () => showToast("Error al procesar la imagen seleccionada");
+        img.src = dataUrl;
+    });
+};
 
-document.getElementById("editEntityImageInput").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        pendingEntity = pendingEntity || {};
-        pendingEntity.image = event.target.result;
-    };
-    reader.readAsDataURL(file);
-});
+document.getElementById("editEntityImageInput").parentElement.onclick = (e) => {
+    e.preventDefault();
+    openImageBank((imageId) => {
+        if (!pendingEntity) pendingEntity = {}; 
+        pendingEntity.image = imageId;
+    });
+};
 
 // MENÚ DE ACCIONES & DOCUMENT CLICK
 entityMenu.addEventListener("click", (e) => e.stopPropagation());
@@ -3607,3 +3770,5 @@ document.addEventListener("keydown", event => {
         invalidateLighting();
     }
 });
+
+initApp();
