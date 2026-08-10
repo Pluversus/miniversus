@@ -287,17 +287,17 @@
                 </div>
             </div>
             <div class="window-content">
-                <label>Tableros de sesión</label>
-                <div id="boardsTabs"></div>
-                <button id="addBoardBtn">+ Nuevo tablero</button>
-
-                <hr style="border: 0; border-top: 1px solid #333; margin: 10px 0;">
-
                 <label>Nombre del tablero activo</label>
                 <div style="display: flex; gap: 5px;">
                     <input type="text" id="boardNameInput" placeholder="Nombre del tablero">
                     <button id="renameBoardBtn">Guardar</button>
                 </div>
+
+                <hr style="border: 0; border-top: 1px solid #333; margin: 10px 0;">
+
+                <label>Tableros de sesión</label>
+                <div id="boardsTabs"></div>
+                <button id="addBoardBtn">+ Nuevo tablero</button>
             </div>
         </div>
 
@@ -432,9 +432,14 @@
     <div class="modal-content entity-editor-container">
 
         <div class="entity-editor-header">
-            <h2 id="entityModalTitle">Crear Entidad</h2>
+            <h2 id="entityModalTitle">Editor de Entidad</h2>
             <div class="header-actions">
                 <button id="confirmEntityBtn" onclick="confirmEntity()">Guardar</button>
+                <button onclick="exportFullEntity()" class="btn-secondary">Exportar Ficha</button>
+                <label class="file-btn btn-secondary" style="margin-top:0;">
+                    Importar Ficha
+                    <input type="file" accept=".json" onchange="importFullEntity(event)">
+                </label>
                 <button class="btn-cancel" onclick="closeEntityModal()">Cancelar</button>
             </div>
         </div>
@@ -529,7 +534,9 @@
         <div id="statsTab" class="tab-content active">
             <div class="tab-header">
                 <h3>Estadísticas Base</h3>
-                <button onclick="addStatField()">+ Añadir Stat</button>
+                <div style="display: flex; gap: 5px;">
+                    <button onclick="addStatField()">+ Añadir Stat</button>
+                </div>
             </div>
             <div id="statsContainer" class="single-line-list"></div>
         </div>
@@ -538,7 +545,10 @@
         <div id="abilitiesTab" class="tab-content hidden">
             <div class="tab-header">
                 <h3>Habilidades</h3>
-                <button onclick="addAbilityField()">+ Añadir Habilidad</button>
+                <div style="display: flex; gap: 5px;">
+                    <label class="file-btn">Importar <input type="file" accept=".json" onchange="importToComponent('ability', event)"></label>
+                    <button onclick="addAbilityField()">+ Añadir Habilidad</button>
+                </div>
             </div>
             <div id="abilitiesContainer" class="single-line-list"></div>
         </div>
@@ -548,36 +558,46 @@
             <div class="inventory-section">
                 <div class="tab-header">
                     <h3>Armas</h3>
-                    <button onclick="addWeaponField()">+ Añadir Arma</button>
+                    <div style="display: flex; gap: 5px;">
+                        <label class="file-btn">Importar <input type="file" accept=".json" onchange="importToComponent('weapon', event)"></label>
+                        <button onclick="addWeaponField()">+ Añadir Arma</button>
+                    </div>
                 </div>
                 <div id="weaponsContainer" class="single-line-list"></div>
             </div>
-
             <hr class="divider">
-
             <div class="inventory-section">
                 <div class="tab-header">
                     <h3>Objetos Modificadores</h3>
-                    <button onclick="addItemField()">+ Añadir Objeto</button>
+                    <div style="display: flex; gap: 5px;">
+                        <label class="file-btn">Importar <input type="file" accept=".json" onchange="importToComponent('item', event)"></label>
+                        <button onclick="addItemField()">+ Añadir Objeto</button>
+                    </div>
                 </div>
                 <div id="itemsContainer" class="single-line-list"></div>
             </div>
         </div>
 
-        <!-- SECCIÓN 4: ESTADOS (EFECTOS Y CONDICIONES) -->
+        <!-- SECCIÓN 4: ESTADOS -->
         <div id="statusTab" class="tab-content hidden">
             <div class="tab-header">
                 <h3>Estados del Personaje</h3>
-                <button onclick="addStatusField()">+ Añadir Estado</button>
+                <div style="display: flex; gap: 5px;">
+                    <label class="file-btn">Importar <input type="file" accept=".json" onchange="importToComponent('status', event)"></label>
+                    <button onclick="addStatusField()">+ Añadir Estado</button>
+                </div>
             </div>
             <div id="statusContainer" class="single-line-list"></div>
         </div>
 
-        <!-- SECCIÓN: GESTOR DE MACROS -->
+        <!-- SECCIÓN 5: MACROS -->
         <div id="macrosTab" class="tab-content hidden">
             <div class="tab-header">
                 <h3>Macros de la Entidad</h3>
-                <button type="button" onclick="addMacroField()">+ Añadir Macro</button>
+                <div style="display: flex; gap: 5px;">
+                    <label class="file-btn">Importar <input type="file" accept=".json" onchange="importToComponent('macro', event)"></label>
+                    <button type="button" onclick="addMacroField()">+ Añadir Macro</button>
+                </div>
             </div>
             <div id="macrosContainer" class="single-line-list"></div>
         </div>

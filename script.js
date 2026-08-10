@@ -167,12 +167,15 @@ function loadFromLocalStorage() {
 
 function updateAutoSaveSettings() {
     let saveToggle = document.getElementById("autoSaveToggle").checked;
-    appState.autoSaveEnabled = saveToggle;
-    appState.autoSaveInterval = parseInt(document.getElementById("autoSaveIntervalInput").value) || 5;
-    
+
     if (saveToggle === false) {
+        alert("Al desactivar esta opción se eliminaron los datos guardados anteriormente. Se recomienda exportar si no quieres perder los datos.");
+
         localStorage.removeItem(LOCAL_STORAGE_KEY);
     }
+
+    appState.autoSaveEnabled = saveToggle;
+    appState.autoSaveInterval = parseInt(document.getElementById("autoSaveIntervalInput").value) || 5;
 
     startAutoSaveTimer();
 }
@@ -186,13 +189,10 @@ function startAutoSaveTimer() {
     }
 }
 
-function resetSession() {
-    const confirm1 = confirm("¿Estás seguro de que quieres iniciar una nueva sesión?");
-    if (!confirm1) return;
+function resetSession() {    
+    const confirm1 = confirm("¡ATENCIÓN! Esto borrará todos los tableros, entidades y datos guardados en este navegador y reiniciará la sesión. Se recomienda exportar los datos. ¿Proceder?");
     
-    const confirm2 = confirm("¡ATENCIÓN! Esto borrará todos los tableros, entidades y progreso guardado en este navegador. Se recomienda exportar los datos. ¿Proceder?");
-    
-    if (confirm2) {
+    if (confirm1) {
         localStorage.removeItem(LOCAL_STORAGE_KEY);
         location.reload();
     }
@@ -232,6 +232,8 @@ function getCurrentBoard() {
 function switchBoard(boardId) {
     clearMeasurement();
     appState.activeBoardId = boardId;
+    const boardName = getCurrentBoard()?.name || "Desconocido";
+    logEvent('system', `Cambiando al tablero: "${boardName}"`);
     renderBoardTabs();
     renderCurrentBoard();
 }
@@ -386,6 +388,11 @@ function renderCurrentBoard() {
     const notesTextArea = document.getElementById("sessionNotes");
     if (notesTextArea) notesTextArea.value = boardData.notes || "";
 
+
+    mapImage.onload = () => {
+        imageWidth = mapImage.naturalWidth;
+        imageHeight = mapImage.naturalHeight;
+    };
     mapImage.src = getImgData(boardData.map.image);
 
     applyVisionMode();
@@ -454,14 +461,23 @@ function toggleGridColor() {
 
 function applyMapScale() {
     clearMeasurement();
-    const value = parseFloat(document.getElementById("mapScaleInput").value);
-    if (!value || value <= 0) return;
+    const input = document.getElementById("mapScaleInput");
+    const value = parseFloat(input.value);
+    
+    if (isNaN(value) || value <= 0) return;
 
     const boardData = getCurrentBoard();
     const oldWidth = boardData.map.width;
     const oldHeight = boardData.map.height;
 
+    boardData.map.scale = value;
     MAP_SCALE = value;
+
+    if (!imageWidth || imageWidth === 0) {
+        imageWidth = mapImage.naturalWidth || (boardData.map.baseWidth / (boardData.map.scale || 1));
+        imageHeight = mapImage.naturalHeight || (boardData.map.baseHeight / (boardData.map.scale || 1));
+    }
+
     const newWidth = imageWidth * MAP_SCALE;
     const newHeight = imageHeight * MAP_SCALE;
 
@@ -480,13 +496,21 @@ function applyMapScale() {
         boardData.entities.forEach(entity => {
             entity.x = Math.round((entity.x * scaleFactorX) / GRID_SIZE) * GRID_SIZE;
             entity.y = Math.round((entity.y * scaleFactorY) / GRID_SIZE) * GRID_SIZE;
-
             validateEntityPosition(entity, newWidth, newHeight, GRID_SIZE);
         });
     }
 
     syncGrid();
-    renderCurrentBoard();
+    invalidateLighting();
+    invalidateFog();
+    
+    document.querySelectorAll(".token").forEach(t => {
+        const data = t.entityData;
+        t.style.left = `${data.x}px`;
+        t.style.top = `${data.y}px`;
+        t.style.width = `${data.size * GRID_SIZE}px`;
+        t.style.height = `${data.size * GRID_SIZE}px`;
+    });
 }
 
 function applyVisionMode() {
@@ -1563,7 +1587,7 @@ function addAbilityField(data = null) {
             <input placeholder="Nombre de Habilidad" class="ability-name" value="${data?.name || ''}">
             <label>Maná:</label>
             <input type="number" class="ability-mana" min="0" value="${data?.mana || 0}" style="width: 50px;">
-            <label>Acción Principal:</label>
+            <label>Acción:</label>
             <select class="ability-type" onchange="handleTypeToggle(this, {'.ability-flat-fields': ['flat_damage','heal_flat'], '.ability-dice-fields': ['dice_damage','heal_dice'], '.ability-stat-fields': ['stat_mod'], '.ability-scale-fields': ['dice_damage','flat_damage','stat_mod']})">
                 <option value="dice_damage" ${type === 'dice_damage' ? 'selected' : ''}>Daño Dados</option>
                 <option value="flat_damage" ${type === 'flat_damage' ? 'selected' : ''}>Daño Plano</option>
@@ -1571,7 +1595,10 @@ function addAbilityField(data = null) {
                 <option value="heal_dice" ${type === 'heal_dice' ? 'selected' : ''}>Curación Dados</option>
                 <option value="stat_mod" ${type === 'stat_mod' ? 'selected' : ''}>Modificación Stat</option>
             </select>
-            <button type="button" class="btn-delete" onclick="this.closest('.single-line-item').remove()">×</button>
+            <div class="item-actions">
+                <button type="button" title="Exportar Habilidad" class="btn-action-small" onclick="exportIndividualComponent('ability', this)">⬇</button>
+                <button type="button" class="btn-delete-small" onclick="this.closest('.single-line-item').remove()">×</button>
+            </div>
         </div>
         <div class="ability-main-params" style="margin-top: 4px; width: 100%;">
             <div class="ability-flat-fields ${!['flat_damage', 'heal_flat'].includes(type) ? 'hidden' : ''}">
@@ -1581,20 +1608,20 @@ function addAbilityField(data = null) {
                 <label>Dados:</label><input type="number" class="ability-dice-qty" value="${data?.diceQty || 1}" style="width: 40px;">
                 <select class="ability-dice-type">${diceOptions}</select>
                 <span class="ability-scale-fields ${type === 'heal_dice' ? 'hidden' : ''}" style="display: inline-flex; gap: 4px; align-items: center;">
-                    <label>Escala con:</label><select class="stat-select ability-stat-used">${statOptions}</select>
+                    <label>Escala:</label><select class="stat-select ability-stat-used">${statOptions}</select>
                 </span>
             </div>
             <div class="ability-stat-fields ${type !== 'stat_mod' ? 'hidden' : ''}">
-                <label>Modifica Stat Objetivo:</label><select class="stat-select ability-target-stat">${statOptions}</select>
+                <label>Modifica:</label><select class="stat-select ability-target-stat">${statOptions}</select>
                 <select class="ability-op"><option value="add" ${data?.op === 'add' ? 'selected' : ''}>+</option><option value="subtract" ${data?.op === 'subtract' ? 'selected' : ''}>-</option></select>
                 <input type="number" class="ability-val" value="${data?.val || 1}" style="width: 50px;">
-                <label style="margin-left: 6px;">Duración (Turnos):</label><input type="number" class="ability-duration" value="${data?.duration || 1}" min="1" style="width: 50px;">
+                <label>Rondas:</label><input type="number" class="ability-duration" value="${data?.duration || 1}" min="1" style="width: 50px;">
             </div>
         </div>
         <div style="margin-top: 8px; width: 100%; border-top: 1px solid #444; padding-top: 4px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <small style="color: #aaa;">Estados que aplicará al objetivo:</small>
-                <button type="button" class="btn-secondary" onclick="addStatusToParent(this)" style="padding: 2px 6px; font-size: 11px;">+ Aplicar Estado</button>
+                <small style="color: #aaa;">Estados aplicados:</small>
+                <button type="button" class="btn-secondary" onclick="addStatusToParent(this)" style="padding: 2px 8px; font-size: 10px; border-radius: 6px;">+ Estado</button>
             </div>
             <div class="applied-statuses-list" style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;"></div>
         </div>`;
@@ -1623,17 +1650,20 @@ function addWeaponField(data = null) {
             <div class="weapon-dice-fields ${type === 'flat_damage' ? 'hidden' : ''}" style="display: flex; gap: 4px; align-items: center;">
                 <input type="number" class="weapon-dice-qty" value="${data?.diceQty || 1}" style="width: 40px;">
                 <select class="weapon-dice-type">${diceOptions}</select>
-                <label>Escala con:</label><select class="stat-select weapon-stat-used">${statOptions}</select>
+                <label>Escala:</label><select class="stat-select weapon-stat-used">${statOptions}</select>
             </div>
             <div class="weapon-flat-fields ${type !== 'flat_damage' ? 'hidden' : ''}" style="display: flex; gap: 4px; align-items: center;">
-                <label>Daño directo:</label><input type="number" class="weapon-flat-damage" value="${data?.flatDamage || 0}" style="width: 55px;">
+                <label>Daño:</label><input type="number" class="weapon-flat-damage" value="${data?.flatDamage || 0}" style="width: 55px;">
             </div>
-            <button type="button" class="btn-delete" onclick="this.closest('.single-line-item').remove()">×</button>
+            <div class="item-actions">
+                <button type="button" title="Exportar Arma" class="btn-action-small" onclick="exportIndividualComponent('weapon', this)">⬇</button>
+                <button type="button" class="btn-delete-small" onclick="this.closest('.single-line-item').remove()">×</button>
+            </div>
         </div>
         <div style="margin-top: 8px; width: 100%; border-top: 1px solid #444; padding-top: 4px;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <small style="color: #aaa;">Estados que puede aplicar al golpear:</small>
-                <button type="button" class="btn-secondary" onclick="addStatusToParent(this)" style="padding: 2px 6px; font-size: 11px;">+ Aplicar Estado</button>
+                <small style="color: #aaa;">Estados al golpear:</small>
+                <button type="button" class="btn-secondary" onclick="addStatusToParent(this)" style="padding: 2px 8px; font-size: 10px; border-radius: 6px;">+ Estado</button>
             </div>
             <div class="applied-statuses-list" style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;"></div>
         </div>`;
@@ -1659,7 +1689,10 @@ function addItemField(data = null) {
             <label>Valor:</label>
             <input type="number" class="item-val" value="${data?.val ?? 1}" style="width: 55px;" oninput="updateEntityModifiers()">
         </div>
-        <button class="btn-delete" onclick="this.closest('.single-line-item').remove(); updateEntityModifiers();">×</button>`;
+        <div class="item-actions">
+            <button type="button" title="Exportar Objeto" class="btn-action-small" onclick="exportIndividualComponent('item', this)">⬇</button>
+            <button class="btn-delete-small" onclick="this.closest('.single-line-item').remove(); updateEntityModifiers();">×</button>
+        </div>`;
     document.getElementById("itemsContainer").appendChild(item);
     updateEntityModifiers();
 }
@@ -1673,7 +1706,7 @@ function addStatusField(data = null) {
 
     item.innerHTML = `
         <div class="item-content" style="flex-wrap: wrap; gap: 6px;">
-            <input placeholder="Nombre del estado" class="status-name" value="${data?.name || ''}">
+            <input placeholder="Nombre" class="status-name" value="${data?.name || ''}">
             <label>Rondas:</label><input type="number" class="status-duration" value="${data?.duration || 1}" min="1" style="width: 50px;">
             <label>Tipo:</label>
             <select class="status-type" onchange="handleTypeToggle(this, {'.status-flat-fields': ['flat_damage','heal_flat'], '.status-dice-fields': ['dice_damage','heal_dice'], '.status-stat-fields': ['stat_mod']})">
@@ -1684,7 +1717,7 @@ function addStatusField(data = null) {
                 <option value="stat_mod" ${type === 'stat_mod' ? 'selected' : ''}>Modif. Stats</option>
             </select>
             <div class="status-flat-fields ${!['flat_damage', 'heal_flat'].includes(type) ? 'hidden' : ''}">
-                <label>Valor/turno:</label><input type="number" class="status-flat-damage" value="${data?.flatDamage || 0}" style="width: 55px;">
+                <label>Valor:</label><input type="number" class="status-flat-damage" value="${data?.flatDamage || 0}" style="width: 55px;">
             </div>
             <div class="status-dice-fields ${!['dice_damage', 'heal_dice'].includes(type) ? 'hidden' : ''}">
                 <label>Dados:</label><input type="number" class="status-dice-qty" value="${data?.diceQty || 1}" style="width: 45px;"><select class="status-dice-type">${diceOptions}</select>
@@ -1695,7 +1728,10 @@ function addStatusField(data = null) {
                 <input type="number" class="status-stat-val" value="${data?.statVal || 1}" style="width: 55px;" oninput="updateEntityModifiers()">
             </div>
         </div>
-        <button class="btn-delete" onclick="this.closest('.single-line-item').remove(); updateEntityModifiers();">×</button>`;
+        <div class="item-actions">
+            <button type="button" title="Exportar Estado" class="btn-action-small" onclick="exportIndividualComponent('status', this)">⬇</button>
+            <button class="btn-delete-small" onclick="this.closest('.single-line-item').remove(); updateEntityModifiers();">×</button>
+        </div>`;
     document.getElementById("statusContainer").appendChild(item);
 }
 
@@ -1748,29 +1784,26 @@ function addMacroField(data = null) {
     item.innerHTML = `
         <div style="display: flex; gap: 8px; align-items: center; width: 100%;">
             <input placeholder="Nombre de la Macro" class="macro-name" value="${data?.name || ''}" style="flex: 1;">
-            
-            <label style="font-size: 8pt; display: flex; align-items: center; gap: 4px;">
-                <input type="checkbox" class="macro-once" ${data?.triggerOnce ? 'checked' : ''}> Ejecucción única
+            <label style="font-size: 8pt; display: flex; align-items: center; gap: 4px; white-space:nowrap;">
+                <input type="checkbox" class="macro-once" ${data?.triggerOnce ? 'checked' : ''}> Una vez
             </label>
-
-            <label style="font-size: 8pt; display: flex; align-items: center; gap: 4px;">
+            <label style="font-size: 8pt; display: flex; align-items: center; gap: 4px; white-space:nowrap;">
                 <input type="checkbox" class="macro-enabled" ${data?.enabled !== false ? 'checked' : ''}> Activa
             </label>
-
-            <button type="button" class="btn-delete" onclick="this.closest('.single-line-item').remove()">×</button>
+            <div class="item-actions">
+                <button type="button" title="Exportar Macro" class="btn-action-small" onclick="exportIndividualComponent('macro', this)">⬇</button>
+                <button type="button" class="btn-delete-small" onclick="this.closest('.single-line-item').remove()">×</button>
+            </div>
         </div>
-
         <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 6px;">
-            <label style="font-size: 7.5pt; color: #a3a3a3;">Condición (JS Boolean):</label>
-            <input class="macro-condition" placeholder="event.type === 'hp_decreased' && entity.getHp() < 5" value="${data?.condition || ''}" style="font-family: monospace; font-size: 8pt;">
+            <label style="font-size: 7.5pt; color: #a3a3a3;">Condición (JS):</label>
+            <input class="macro-condition" placeholder="event.type === 'hp_decreased'" value="${data?.condition || ''}" style="font-family: monospace; font-size: 8pt;">
         </div>
-
         <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 6px;">
-            <label style="font-size: 7.5pt; color: #a3a3a3;">Acción (Código a Ejecutar):</label>
+            <label style="font-size: 7.5pt; color: #a3a3a3;">Acción:</label>
             <textarea class="macro-action" rows="10" placeholder="entity.modifyHp(10);" style="font-family: monospace; font-size: 8pt; resize: vertical;">${data?.action || ''}</textarea>
         </div>
     `;
-
     document.getElementById("macrosContainer").appendChild(item);
 }
 
@@ -1984,16 +2017,216 @@ function syncEntityToState(token) {
 
 function moveEntityToBoard(entityId, targetBoardId) {
     const source = getCurrentBoard();
-    const entity = source.entities.find(e => e.id === entityId);
-    if (!entity) return;
+    const targetBoard = appState.boards.find(b => b.id === targetBoardId);
+    
+    if (!source || !targetBoard) return;
 
-    source.entities = source.entities.filter(e => e.id !== entityId);
-    appState.boards.find(b => b.id === targetBoardId)?.entities.push({ ...entity, x: 0, y: 0 });
+    const entityIndex = source.entities.findIndex(e => e.id === entityId);
+    if (entityIndex === -1) return;
+
+    const [entity] = source.entities.splice(entityIndex, 1);
+
+    const targetGridSize = targetBoard.map.gridSize || 40;
+    const centerX = Math.round((targetBoard.map.width / targetGridSize / 2)) * targetGridSize;
+    const centerY = Math.round((targetBoard.map.height / targetGridSize / 2)) * targetGridSize;
+
+    entity.x = centerX;
+    entity.y = centerY;
+
+    targetBoard.entities.push(entity);
+
+    logEvent('entity', `Entidad "${entity.name}" movida del tablero "${source.name}" al tablero "${targetBoard.name}"`);
 
     selectedEntity = null;
     entityMenu.classList.add("hidden");
     hideTooltip();
     renderCurrentBoard();
+}
+
+/* ==========================================================================
+   SISTEMA DE EXPORTACIÓN / IMPORTACIÓN DE ENTIDAD Y DATOS
+   ========================================================================== */
+
+function downloadJSON(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function exportFullEntity() {
+    const entityData = scrapeEntityModalData();
+    if (!entityData.name) entityData.name = "Exported_Character";
+    downloadJSON(entityData, `${entityData.name.replace(/\s+/g, '_')}.json`);
+}
+
+function importFullEntity(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            loadEntityIntoModal(data);
+            showToast("Personaje importado correctamente.");
+        } catch (err) {
+            alert("Error al leer el archivo de personaje.");
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+}
+
+function exportIndividualComponent(type, btnElement) {
+    const container = btnElement.closest('.single-line-item');
+    let data = {};
+    let filename = "component.json";
+
+    if (type === 'ability') {
+        data = {
+            name: getVal(container, ".ability-name"),
+            mana: getNum(container, ".ability-mana"),
+            type: getVal(container, ".ability-type"),
+            flatDamage: getNum(container, ".ability-flat-damage"),
+            diceQty: getNum(container, ".ability-dice-qty"),
+            diceType: getVal(container, ".ability-dice-type"),
+            statUsed: getVal(container, ".ability-stat-used"),
+            targetStat: getVal(container, ".ability-target-stat"),
+            op: getVal(container, ".ability-op"),
+            val: getNum(container, ".ability-val"),
+            duration: getNum(container, ".ability-duration"),
+            appliedStatuses: getAppliedStatusesFromContainer(container)
+        };
+        filename = `Ability_${data.name}.json`;
+    } else if (type === 'weapon') {
+        data = {
+            name: getVal(container, ".weapon-name"),
+            type: getVal(container, ".weapon-type"),
+            diceQty: getNum(container, ".weapon-dice-qty"),
+            diceType: getVal(container, ".weapon-dice-type"),
+            statUsed: getVal(container, ".weapon-stat-used"),
+            flatDamage: getNum(container, ".weapon-flat-damage"),
+            appliedStatuses: getAppliedStatusesFromContainer(container)
+        };
+        filename = `Weapon_${data.name}.json`;
+    } else if (type === 'item') {
+        data = {
+            name: getVal(container, ".item-name"),
+            targetStat: getVal(container, ".item-target-stat"),
+            op: getVal(container, ".item-op"),
+            val: getNum(container, ".item-val")
+        };
+        filename = `Item_${data.name}.json`;
+    } else if (type === 'status') {
+        data = {
+            name: getVal(container, ".status-name"),
+            duration: getNum(container, ".status-duration"),
+            type: getVal(container, ".status-type"),
+            flatDamage: getNum(container, ".status-flat-damage"),
+            diceQty: getNum(container, ".status-dice-qty"),
+            diceType: getVal(container, ".status-dice-type"),
+            targetStat: getVal(container, ".status-target-stat"),
+            op: getVal(container, ".status-op"),
+            statVal: getNum(container, ".status-stat-val")
+        };
+        filename = `Status_${data.name}.json`;
+    } else if (type === 'macro') {
+        data = {
+            name: getVal(container, ".macro-name"),
+            triggerOnce: container.querySelector(".macro-once").checked,
+            enabled: container.querySelector(".macro-enabled").checked,
+            condition: getVal(container, ".macro-condition"),
+            action: getVal(container, ".macro-action")
+        };
+        filename = `Macro_${data.name}.json`;
+    }
+
+    downloadJSON(data, filename.replace(/\s+/g, '_'));
+}
+
+function importToComponent(type, event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (type === 'stat') addStatField(data.name, data.value);
+            if (type === 'ability') addAbilityField(data);
+            if (type === 'weapon') addWeaponField(data);
+            if (type === 'item') addItemField(data);
+            if (type === 'status') addStatusField(data);
+            if (type === 'macro') addMacroField(data);
+            showToast(`Importado: ${data.name || type}`);
+        } catch (err) {
+            alert("Archivo JSON no válido.");
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+}
+
+function scrapeEntityModalData() {
+    const stats = [
+        { name: "Vida", value: `${getNum(document, "#vidaActual")}/${getNum(document, "#vidaMax")}` },
+        { name: "Mana", value: `${getNum(document, "#manaActual")}/${getNum(document, "#manaMax")}` },
+        { name: "Velocidad", value: getNum(document, "#velocidadInput") }
+    ];
+    document.querySelectorAll("#statsContainer .single-line-item").forEach(item => {
+        stats.push({ name: getVal(item, ".stat-name-input"), value: getVal(item, ".stat-value-input") });
+    });
+
+    const abilities = Array.from(document.querySelectorAll("#abilitiesContainer .single-line-item")).map(item => {
+        const type = getVal(item, ".ability-type");
+        return {
+            name: getVal(item, ".ability-name"), mana: getNum(item, ".ability-mana"), type,
+            flatDamage: getNum(item, ".ability-flat-damage"), diceQty: getNum(item, ".ability-dice-qty"),
+            diceType: getVal(item, ".ability-dice-type"), statUsed: getVal(item, ".ability-stat-used"),
+            targetStat: getVal(item, ".ability-target-stat"), op: getVal(item, ".ability-op"),
+            val: getNum(item, ".ability-val"), duration: getNum(item, ".ability-duration"),
+            appliedStatuses: getAppliedStatusesFromContainer(item)
+        };
+    });
+
+    const weapons = Array.from(document.querySelectorAll("#weaponsContainer .single-line-item")).map(item => {
+        const type = getVal(item, ".weapon-type");
+        return {
+            name: getVal(item, ".weapon-name"), type,
+            diceQty: getNum(item, ".weapon-dice-qty"), diceType: getVal(item, ".weapon-dice-type"),
+            statUsed: getVal(item, ".weapon-stat-used"), flatDamage: getNum(item, ".weapon-flat-damage"),
+            appliedStatuses: getAppliedStatusesFromContainer(item)
+        };
+    });
+
+    const items = Array.from(document.querySelectorAll("#itemsContainer .single-line-item")).map(item => ({
+        name: getVal(item, ".item-name"), targetStat: getVal(item, ".item-target-stat"), op: getVal(item, ".item-op"), val: getNum(item, ".item-val")
+    }));
+
+    const statuses = Array.from(document.querySelectorAll("#statusContainer .single-line-item")).map(item => {
+        const type = getVal(item, ".status-type");
+        return {
+            name: getVal(item, ".status-name"), duration: getNum(item, ".status-duration"), type,
+            flatDamage: getNum(item, ".status-flat-damage"), diceQty: getNum(item, ".status-dice-qty"),
+            diceType: getVal(item, ".status-dice-type"), targetStat: getVal(item, ".status-target-stat"),
+            op: getVal(item, ".status-op"), statVal: getNum(item, ".status-stat-val")
+        };
+    });
+
+    const macros = Array.from(document.querySelectorAll("#macrosContainer .single-line-item")).map(item => ({
+        name: getVal(item, ".macro-name"), triggerOnce: item.querySelector(".macro-once").checked,
+        enabled: item.querySelector(".macro-enabled").checked, condition: getVal(item, ".macro-condition"),
+        action: getVal(item, ".macro-action")
+    }));
+
+    return {
+        name: getVal(document, "#entityName"), clase: getVal(document, "#entityClass"),
+        size: getNum(document, "#entitySize"), speed: getNum(document, "#velocidadInput"),
+        initDice: getVal(document, "#initDiceSelect"), image: pendingEntity?.image,
+        stats, abilities, weapons, items, statuses, macros, type: pendingEntity?.type || 'character'
+    };
 }
 
 // TOOLTIP & DELEGACIÓN DE EVENTOS EN BOARD
@@ -2580,7 +2813,12 @@ function executeAttackOnTarget(targetToken) {
     const critPrefix = isCrit ? "¡CRÍTICO! " : "";
     showFloatingText(targetToken, `${critPrefix}-${finalDamage} HP`, color);
 
-    logEvent("attack", `${attackerData.name} atacó a ${targetData.name}. ${isCrit ? '¡GOLPE CRÍTICO!' : ''} Daño: ${finalDamage}`, { isCrit });
+    logEvent("attack", `${attackerData.name} usó ${weaponName} contra ${targetData.name}: ${critText}${finalDamage} de daño. (Vida restante: ${currentHp}/${maxHp})`, {
+        attacker: attackerData.name,
+        target: targetData.name,
+        damage: finalDamage,
+        isCrit: isCrit
+    });
 
     cancelTargetSelection();
 }
@@ -2759,10 +2997,11 @@ function applySkillToTarget(targetToken) {
     }
 
     syncEntityToState(targetToken);
-    logEvent("skill", `${casterData.name} usó ${pendingSkill.name} sobre ${targetData.name}`, {
-        skill: pendingSkill.name,
-        target: targetData.name
-    });
+    if (pendingSkill.type.includes("heal")) {
+        logEvent("skill", `${casterData.name} curó a ${targetData.name} con ${skillName}: +${healAmount} HP. (Vida actual: ${currentHp}/${maxHp})`);
+    } else {
+        logEvent("skill", `${casterData.name} aplicó efecto "${skillName}" a ${targetData.name} por ${pendingSkill.duration} turnos.`);
+    }
 
     pendingSkill = null;
     selectingTarget = false;
@@ -2836,12 +3075,14 @@ function rollAllInitiatives() {
 
     initiativeList.sort((a, b) => b.initiative - a.initiative);
     currentTurnIndex = 0;
+    logEvent('initiative', `Iniciativa generada para ${initiativeList.length} entidades. Comienza el turno de: ${initiativeList[0]?.name}`);
     renderInitiativeTracker();
 }
 
 function nextTurn() {
     if (!initiativeList.length) return;
     currentTurnIndex = (currentTurnIndex + 1) % initiativeList.length;
+    logEvent('initiative', `Empieza el turno de: ${nextEntity.name}`);
     renderInitiativeTracker();
     startTurn(currentTurnIndex);
 }
@@ -2860,6 +3101,7 @@ function startTurn(index) {
 function clearInitiative() {
     initiativeList = [];
     currentTurnIndex = -1;
+    logEvent('initiative', 'El encuentro ha finalizado. Se ha limpiado la lista de iniciativa.');
     renderInitiativeTracker();
 }
 
@@ -3144,6 +3386,32 @@ const panels = {
     entityBank: "entityBankPanel"
 };
 
+const windowCleanupMap = {
+    "lightsPanel": () => {
+        lightingEditor = false;
+        board.classList.remove("lighting-editor");
+        toggleLightingEditor.classList.remove("active");
+        updateLightingUI();
+        invalidateLighting();
+    },
+    "toolsPanel": () => {
+        measureMode = false;
+        drawMode = false;
+        eraseMode = false;
+        board.classList.remove("measure-mode", "draw-mode");
+        measureToolBtn.classList.remove("active");
+        drawToolBtn.classList.remove("active");
+        eraserDrawToolBtn.classList.remove("active");
+        drawCanvas.style.pointerEvents = "none";
+        clearMeasurement();
+    },
+    "initiativePanel": () => {
+        if (selectEntitiesOnBoardMode) {
+            toggleSelectEntitiesOnBoard();
+        }
+    }
+};
+
 let highestZIndex = 10000;
 
 function bringToFront(windowElement) {
@@ -3163,6 +3431,9 @@ document.querySelectorAll(".floating-window").forEach(win => {
         closeBtn.addEventListener("click", (e) => {
             e.stopPropagation();
             win.classList.add("hidden");
+            if (windowCleanupMap[win.id]) {
+                windowCleanupMap[win.id]();
+            }
             const existingCard = document.querySelector(`.minimized-card[data-target="${win.id}"]`);
             if (existingCard) existingCard.remove();
         });

@@ -104,6 +104,61 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.btn-secondary {
+  background: linear-gradient(180deg, #3f3f46, #18181b) !important;
+  border: 1px solid #52525b !important;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+  color: #e4e4e7 !important;
+}
+
+.btn-secondary:hover {
+  background: linear-gradient(180deg, #52525b, #27272a) !important;
+  border-color: #71717a !important;
+  color: #fff !important;
+}
+
+.btn-action-small {
+  background: var(--primary-color);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.btn-action-small:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.item-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.btn-delete-small {
+  background: var(--color-danger);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-weight: bold;
+}
+
+.btn-delete-small:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
 input,
 select,
 textarea {
@@ -132,6 +187,19 @@ textarea:focus {
   font-weight: 600;
   color: var(--color-text-white);
   text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--transition-fast), background var(--transition-normal), box-shadow var(--transition-normal);
+  box-shadow: 0 4px 10px var(--primary-glow);
+  border: none;
+  box-sizing: border-box;
+}
+
+.file-btn:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(180deg, var(--primary-hover), var(--primary-active));
+  box-shadow: 0 8px 18px rgba(34, 197, 94, 0.35);
 }
 
 .file-btn input[type="file"] {
