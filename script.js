@@ -33,10 +33,17 @@ const drawToolBtn = document.getElementById("drawToolBtn");
 const eraserDrawToolBtn = document.getElementById("eraserDrawToolBtn");
 const toggleLightingEditor = document.getElementById("toggleLightingEditor");
 
+const fogBrushBtn = document.getElementById("fogBrushBtn");
+const fogEraserBtn = document.getElementById("fogEraserBtn");
+const toggleFogEditor = document.getElementById("toggleFogEditor");
+
 let lightingDirty = true;
-let fogDirty = false;
 let lightingEditor = false;
 let lightingTool = "light";
+
+let fogDirty = false;
+let fogEditorMode = false;
+let fogTool = 'eraser';
 
 let currentLightRadius = 350;
 let currentLightColor = "#fff4aa";
@@ -75,6 +82,9 @@ let eraseMode = false;
 let drawing = false;
 let drawColor = "#ff0000";
 let drawSize = 3;
+let drawShape = "freehand";
+let drawFill = false;
+let drawSnapshot = null;
 
 let autoSaveTimer = null;
 const LOCAL_STORAGE_KEY = "miniversus_backup";
@@ -120,7 +130,9 @@ async function initApp() {
     resizeBoard();
     effectsLoop();
     updateLightingUI();
+    updateFogUI();
     selectLightingTool("light", lightToolBtn);
+    selectFogTool("eraser", fogEraserBtn)
     
     startAutoSaveTimer();
 }
@@ -442,6 +454,10 @@ function renderCurrentBoard() {
 
     GRID_SIZE = boardData.map.gridSize;
     MAP_SCALE = boardData.map.scale || 1;
+
+    const fog = boardData.fog;
+    document.getElementById("fogColorInput").value = fog.color || "#000000";
+    document.getElementById("fogOpacityInput").value = fog.opacity !== undefined ? fog.opacity : 0.9;
 
     const scaleInput = document.getElementById("mapScaleInput");
     if (scaleInput) scaleInput.value = MAP_SCALE;
@@ -816,29 +832,105 @@ function startDrawing(e) {
 
     drawing = true;
     const pos = getCanvasCoords(e);
-    drawCtx.beginPath();
-    drawCtx.moveTo(pos.x, pos.y);
 
-    const onDraw = (moveEvent) => {
-        if (!drawing) return;
-        const p = getCanvasCoords(moveEvent);
-        drawCtx.globalCompositeOperation = eraseMode ? "destination-out" : "source-over";
-        drawCtx.strokeStyle = drawColor;
-        drawCtx.lineWidth = drawSize;
-        drawCtx.lineCap = "round";
-        drawCtx.lineTo(p.x, p.y);
-        drawCtx.stroke();
-    };
-
-    const stopDrawing = () => {
-        drawing = false;
+    if (eraseMode || drawShape === "freehand") {
         drawCtx.beginPath();
-        window.removeEventListener("mousemove", onDraw);
-        window.removeEventListener("mouseup", stopDrawing);
-    };
+        drawCtx.moveTo(pos.x, pos.y);
 
-    window.addEventListener("mousemove", onDraw);
-    window.addEventListener("mouseup", stopDrawing);
+        const onDraw = (moveEvent) => {
+            if (!drawing) return;
+            const p = getCanvasCoords(moveEvent);
+            drawCtx.globalCompositeOperation = eraseMode ? "destination-out" : "source-over";
+            drawCtx.strokeStyle = drawColor;
+            drawCtx.lineWidth = drawSize;
+            drawCtx.lineCap = "round";
+            drawCtx.lineJoin = "round";
+            drawCtx.lineTo(p.x, p.y);
+            drawCtx.stroke();
+        };
+
+        const stopDrawing = () => {
+            drawing = false;
+            drawCtx.beginPath();
+            window.removeEventListener("mousemove", onDraw);
+            window.removeEventListener("mouseup", stopDrawing);
+        };
+
+        window.addEventListener("mousemove", onDraw);
+        window.addEventListener("mouseup", stopDrawing);
+
+    } else {
+        drawSnapshot = drawCtx.getImageData(0, 0, drawCanvas.width, drawCanvas.height);
+        const startX = pos.x;
+        const startY = pos.y;
+
+        const renderShape = (currentX, currentY, shiftKey = false) => {
+            if (!drawSnapshot) return;
+            
+            drawCtx.putImageData(drawSnapshot, 0, 0);
+            drawCtx.globalCompositeOperation = "source-over";
+            drawCtx.strokeStyle = drawColor;
+            drawCtx.fillStyle = drawColor;
+            drawCtx.lineWidth = drawSize;
+            drawCtx.lineCap = "round";
+            drawCtx.lineJoin = "round";
+
+            drawCtx.beginPath();
+
+            if (drawShape === "line") {
+                drawCtx.moveTo(startX, startY);
+                drawCtx.lineTo(currentX, currentY);
+                drawCtx.stroke();
+
+            } else if (drawShape === "rect") {
+                let w = currentX - startX;
+                let h = currentY - startY;
+
+                if (shiftKey) {
+                    const side = Math.max(Math.abs(w), Math.abs(h));
+                    w = side * Math.sign(w || 1);
+                    h = side * Math.sign(h || 1);
+                }
+
+                drawCtx.rect(startX, startY, w, h);
+                if (drawFill) drawCtx.fill();
+                else drawCtx.stroke();
+
+            } else if (drawShape === "circle") {
+                const radius = Math.hypot(currentX - startX, currentY - startY);
+                drawCtx.arc(startX, startY, radius, 0, Math.PI * 2);
+                if (drawFill) drawCtx.fill();
+                else drawCtx.stroke();
+
+            } else if (drawShape === "triangle") {
+                drawCtx.moveTo((startX + currentX) / 2, startY);
+                drawCtx.lineTo(startX, currentY);
+                drawCtx.lineTo(currentX, currentY);
+                drawCtx.closePath();
+                if (drawFill) drawCtx.fill();
+                else drawCtx.stroke();
+            }
+        };
+
+        const onShapeMove = (moveEvent) => {
+            if (!drawing) return;
+            const p = getCanvasCoords(moveEvent);
+            renderShape(p.x, p.y, moveEvent.shiftKey);
+        };
+
+        const stopShapeDrawing = (upEvent) => {
+            if (!drawing) return;
+            drawing = false;
+            const p = getCanvasCoords(upEvent);
+            renderShape(p.x, p.y, upEvent.shiftKey);
+            drawSnapshot = null;
+            window.removeEventListener("mousemove", onShapeMove);
+            window.removeEventListener("mouseup", stopShapeDrawing);
+        };
+
+        window.addEventListener("mousemove", onShapeMove);
+        window.addEventListener("mouseup", stopShapeDrawing);
+    }
 }
 
 // SISTEMA DE ILUMINACION
@@ -1184,10 +1276,34 @@ function resetFog(){
     invalidateFog();
 }
 
+function clearAllFog() {
+    const b = getCurrentBoard();
+    const cols = Math.ceil(b.map.width / GRID_SIZE);
+    const rows = Math.ceil(b.map.height / GRID_SIZE);
+    for(let x=0; x<cols; x++) {
+        for(let y=0; y<rows; y++) {
+            b.fog.cells[`${x},${y}`] = true;
+        }
+    }
+    invalidateFog();
+}
+
 function revealCell(x, y) {
     const boardData = getCurrentBoard();
     const key = `${x},${y}`;
     boardData.fog.cells[key] = true;
+}
+
+function updateFogUI(){
+    const disabled = !fogEditorMode;
+    fogBrushBtn.disabled = disabled;
+    fogEraserBtn.disabled = disabled;
+}
+
+function selectFogTool(tool, button) {
+    fogTool = tool;
+    [fogBrushBtn, fogEraserBtn].forEach(btn => btn.classList.remove("active"));
+    button.classList.add("active");
 }
 
 function isCellRevealed(x, y){
@@ -1218,7 +1334,13 @@ function renderFog() {
 
     if (!boardData.fog.enabled) return;
 
-    fogCtx.fillStyle = "rgba(0,0,0,0.9)";
+    if (boardData.fog.color === undefined) boardData.fog.color = "#000000";
+    if (boardData.fog.opacity === undefined) boardData.fog.opacity = 0.9;
+
+    const color = boardData.fog.color;
+    const opacity = boardData.fog.opacity;
+    
+    fogCtx.fillStyle = hexToRgba(color, opacity);
     fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
 
     fogCtx.globalCompositeOperation = "destination-out";
@@ -1229,6 +1351,12 @@ function renderFog() {
     }
 
     fogCtx.globalCompositeOperation = "source-over";
+    
+    if (fogEditorMode) {
+        fogCtx.strokeStyle = "rgba(255,255,255,0.2)";
+        fogCtx.strokeRect(0,0, fogCanvas.width, fogCanvas.height);
+    }
+
     updateTokenVisibility();
 }
 
@@ -2612,6 +2740,9 @@ function executeStatRoll() {
     const d20Text = document.getElementById("d20StatResultText");
     const rollBtn = document.getElementById("rollStatActionBtn");
     const totalDisplay = document.getElementById("statRollTotalDisplay");
+    
+    const qty = parseInt(document.getElementById("statDiceQuantity").value) || 1;
+    const faces = parseInt(document.getElementById("statDiceType").value) || 20;
     const statName = document.getElementById("statRollSelect").value;
 
     const calc = getEffectiveStatValue(selectedEntity.entityData, statName);
@@ -2620,27 +2751,51 @@ function executeStatRoll() {
     if (d20) d20.classList.add("rolling");
 
     const interval = setInterval(() => {
-        if (d20Text) d20Text.innerText = rollDice(20);
+        if (d20Text) d20Text.innerText = Math.floor(Math.random() * faces) + 1;
     }, 30);
 
     setTimeout(() => {
         clearInterval(interval);
         if (d20) d20.classList.remove("rolling");
 
-        const d20Result = rollDice(20);
-        const totalResult = Math.min(20, Math.max(1, d20Result + calc.bonus));
+        let diceSum = 0;
+        let rolls = [];
+        for (let i = 0; i < qty; i++) {
+            const roll = rollDice(faces);
+            diceSum += roll;
+            rolls.push(roll);
+        }
+
+        const totalResult = diceSum + calc.bonus;
         const signBonus = calc.bonus >= 0 ? "+" : "";
 
-        if (d20Text) d20Text.innerText = d20Result;
+        if (d20Text) d20Text.innerText = diceSum;
 
         if (totalDisplay) {
             totalDisplay.style.display = "block";
-            totalDisplay.innerText = `Resultado Total: ${totalResult}`;
+            totalDisplay.innerHTML = `
+                <div style="font-size: 9pt; color: #a3a3a3; font-weight: normal;">
+                    Suma Dados: ${diceSum} (${rolls.join('+')})
+                </div>
+                <div>Total: ${totalResult}</div>
+            `;
         }
 
         const entityName = selectedEntity.entityData.name;
-        logEvent("dice", `${entityName} realizó una tirada de ${statName}: ${d20Result} (d20) ${signBonus}${calc.bonus} (Bono) = Total ${totalResult}`, {
-            entity: entityName, statName, d20Result, bonus: calc.bonus, totalResult
+        const logDescription = `${entityName} tiró ${qty}d${faces} para ${statName}: 
+            [${rolls.join(' + ')}] = ${diceSum} 
+            ${signBonus}${calc.bonus} (Bono) 
+            = Total ${totalResult}`;
+
+        logEvent("dice", logDescription, {
+            entity: entityName,
+            statName,
+            diceQty: qty,
+            diceType: faces,
+            rolls,
+            diceSum,
+            bonus: calc.bonus,
+            totalResult
         });
 
         if (rollBtn) rollBtn.disabled = false;
@@ -3395,15 +3550,19 @@ function disableEditors() {
     drawMode = false;
     eraseMode = false;
     lightingEditor = false;
+    fogEditorMode = false;
 
     board.classList.remove("measure-mode", "draw-mode", "lighting-editor");
     measureToolBtn.classList.remove("active");
     drawToolBtn.classList.remove("active");
     eraserDrawToolBtn.classList.remove("active");
     toggleLightingEditor.classList.remove("active");
+    toggleFogEditor.classList.remove("active");
 
     drawCanvas.style.pointerEvents = "none";
     clearMeasurement();
+    updateLightingUI();
+    updateFogUI();
 }
 
 function validateEntityPosition(entity, mapWidth, mapHeight, gridSize) {
@@ -3473,6 +3632,13 @@ const windowCleanupMap = {
         if (selectEntitiesOnBoardMode) {
             toggleSelectEntitiesOnBoard();
         }
+    },
+    "fogsPanel": () => {
+        fogEditorMode = false;
+        board.classList.remove("measure-mode");
+        toggleFogEditor.classList.remove("active");
+        updateFogUI();
+        invalidateFog();
     }
 };
 
@@ -3798,6 +3964,12 @@ document.getElementById("drawSize").addEventListener("input", e => { drawSize = 
 document.getElementById("eraseDrawBtn").addEventListener("click", () => {
     drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 });
+document.getElementById("drawShapeSelect")?.addEventListener("change", e => { 
+    drawShape = e.target.value; 
+});
+document.getElementById("drawFillToggle")?.addEventListener("change", e => { 
+    drawFill = e.target.checked; 
+});
 
 // HERRAMIENTAS DE ILUMINACIÓN
 toggleLightingEditor.addEventListener("click", () => {
@@ -3871,6 +4043,42 @@ document.getElementById("toggleFogBtn").onclick = () => {
     updateTokenVisibility();
 };
 
+toggleFogEditor.addEventListener("click", () => {
+    fogEditorMode = !fogEditorMode;
+    
+    if (fogEditorMode) {
+        disableEditors();
+        fogEditorMode = true;
+        toggleFogEditor.classList.add("active");
+        board.classList.add("measure-mode");
+    } else {
+        toggleFogEditor.classList.remove("active");
+        board.classList.remove("measure-mode");
+    }
+    updateFogUI();
+    invalidateFog();
+});
+
+fogBrushBtn.onclick = () => {
+    fogTool = 'brush';
+    selectFogTool("brush", fogBrushBtn);
+};
+
+fogEraserBtn.onclick = () => {
+    fogTool = 'eraser';
+    selectFogTool("eraser", fogEraserBtn);
+};
+
+document.getElementById("fogColorInput").addEventListener("input", e => {
+    getCurrentBoard().fog.color = e.target.value;
+    invalidateFog();
+});
+
+document.getElementById("fogOpacityInput").addEventListener("input", e => {
+    getCurrentBoard().fog.opacity = parseFloat(e.target.value);
+    invalidateFog();
+});
+
 document.getElementById("characterFogRadius").addEventListener("change", e => {
     if (e.target.value > 1000) e.target.value = 1000;
     characterFogRadius = parseInt(e.target.value) || 250;
@@ -3880,6 +4088,36 @@ document.getElementById("characterFogRadius").addEventListener("change", e => {
 // DELEGACIÓN CENTRAL EN TABLERO (#BOARD) PARA EVENTOS MOUSE/CLICK
 board.addEventListener("mousedown", e => {
     if (e.altKey) return;
+
+    if (fogEditorMode) {
+        const rect = board.getBoundingClientRect();
+        const paintFog = (moveEvent) => {
+            const mx = moveEvent.clientX - rect.left;
+            const my = moveEvent.clientY - rect.top;
+            const cellX = Math.floor(mx / GRID_SIZE);
+            const cellY = Math.floor(my / GRID_SIZE);
+            const key = `${cellX},${cellY}`;
+            
+            const boardData = getCurrentBoard();
+            if (fogTool === 'eraser') {
+                boardData.fog.cells[key] = true;
+            } else {
+                delete boardData.fog.cells[key];
+            }
+            invalidateFog();
+        };
+
+        paintFog(e);
+
+        const onFogMove = (moveEvent) => paintFog(moveEvent);
+        const onFogUp = () => {
+            document.removeEventListener("mousemove", onFogMove);
+            document.removeEventListener("mouseup", onFogUp);
+        };
+        document.addEventListener("mousemove", onFogMove);
+        document.addEventListener("mouseup", onFogUp);
+        return; 
+    }
 
     if (drawMode || eraseMode) {
         startDrawing(e);

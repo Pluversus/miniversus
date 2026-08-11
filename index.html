@@ -33,7 +33,7 @@
         </button>
     </div>
 
-    <!-- Barra de Herramientas Flotante Secundaria (Oculta por defecto) -->
+    <!-- Barra de Herramientas Flotante Secundaria -->
     <div id="floating-toolbar" class="hidden">
         <button class="tool-btn sub-btn" data-panel="tools" title="Herramientas">
             <img src="assets/tools.svg" alt="Herramientas" class="btn-icon">
@@ -112,11 +112,27 @@
                 <label>Medición de distancia</label>
                 <button id="measureToolBtn">Modo medición</button>
                 <label>Dibujar en el mapa</label>
-                <button id="drawToolBtn">Modo dibujo</button>
-                <button id="eraserDrawToolBtn">Modo borrador</button>
-                <button id="eraseDrawBtn">Borrar todo</button>
-                <input type="color" id="drawColor" value="#ff0000">
-                <input type="range" id="drawSize" min="1" max="20" value="3">
+                <div style="display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 5px;">
+                    <button id="drawToolBtn" style="flex: 1;">Modo dibujo</button>
+                    <button id="eraserDrawToolBtn" style="flex: 1;">Modo borrador</button>
+                </div>
+                <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 5px;">
+                    <select id="drawShapeSelect" style="flex: 1; padding: 5px; background: #09090b; color: #fff; border: 1px solid #3f3f46; border-radius: 4px; font-size: 8.5pt;">
+                        <option value="freehand">Línea libre</option>
+                        <option value="line">Línea recta</option>
+                        <option value="rect">Cuadrado / Rectángulo</option>
+                        <option value="circle">Círculo (Radio / Área)</option>
+                        <option value="triangle">Triángulo</option>
+                    </select>
+                    <label style="font-size: 8pt; display: flex; align-items: center; gap: 4px; color: #ccc; white-space: nowrap; cursor: pointer;">
+                        <input type="checkbox" id="drawFillToggle"> Rellenar
+                    </label>
+                </div>
+                <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 5px;">
+                    <input type="color" id="drawColor" value="#ff0000" title="Color del dibujo" style="height: 28px; width: 40px; padding: 0; border: none; background: transparent; cursor: pointer;">
+                    <input type="range" id="drawSize" min="1" max="20" value="3" style="flex: 1;" title="Grosor de línea">
+                    <button id="eraseDrawBtn" style="background: #ef4444; color: #fff; padding: 4px 8px; font-size: 8pt;">Borrar todo</button>
+                </div>
             </div>
         </div>
 
@@ -271,9 +287,24 @@
             <div class="window-content">
                 <label>Niebla de guerra</label>
                 <button id="toggleFogBtn">ON/OFF niebla</button>
+                <button id="toggleFogEditor">Modo editor</button>
+                <button id="fogBrushBtn">Pintar</button>
+                <button id="fogEraserBtn">Borrar</button>
+                
+                <label>Apariencia</label>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <input type="color" id="fogColorInput" value="#000000" title="Color de la niebla" style="width: 40px; height: 30px; padding: 0; border: none; background: transparent; cursor: pointer;">
+                    <div style="flex: 1;">
+                        <label style="font-size: 7.5pt;">Opacidad</label>
+                        <input type="range" id="fogOpacityInput" min="0" max="1" step="0.05" value="0.9" style="width: 100%;">
+                    </div>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid #333; margin: 10px 0;">
                 <label>Radio personajes</label>
                 <input type="number" id="characterFogRadius" value="250" min="50" max="1000">
                 <button onclick="resetFog()">Reiniciar niebla</button>
+                <button onclick="clearAllFog()">Limpiar niebla</button>
             </div>
         </div>
 
@@ -1257,6 +1288,26 @@
             </select>
         </div>
 
+        <div style="display: flex; gap: 5px; align-items: center; width: 100%; margin-bottom: 10px;">
+            <div style="flex: 1;">
+                <label style="font-size: 7.5pt; color: #a3a3a3; display: block;">Cantidad:</label>
+                <input type="number" id="statDiceQuantity" value="1" min="1" max="20" style="width: 100%; padding: 5px;">
+            </div>
+            <span style="color: #a3a3a3; margin-top: 15px;">d</span>
+            <div style="flex: 2;">
+                <label style="font-size: 7.5pt; color: #a3a3a3; display: block;">Tipo de Dado:</label>
+                <select id="statDiceType" style="width: 100%; padding: 5px;">
+                    <option value="4">4</option>
+                    <option value="6">6</option>
+                    <option value="8">8</option>
+                    <option value="10">10</option>
+                    <option value="12">12</option>
+                    <option value="20" selected>20</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+        </div>
+
         <!-- Previsualización del cálculo del stat -->
         <div id="statRollPreview" style="background: #18181b; border: 1px solid #27272a; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 8.5pt; text-align: left;">
             <div>Valor base: <span id="statBaseVal" style="font-weight: bold; color: #fff;">10</span></div>
@@ -1285,7 +1336,7 @@
         </div>
 
         <div style="display: flex; gap: 8px; justify-content: center; margin-top: 10px;">
-            <button id="rollStatActionBtn" onclick="executeStatRoll()" style="flex: 1;">Lanzar d20</button>
+            <button id="rollStatActionBtn" onclick="executeStatRoll()" style="flex: 1;">Lanzar dados</button>
             <button onclick="closeStatRollModal()" style="background: #333; color: #ccc;">Cerrar</button>
         </div>
     </div>

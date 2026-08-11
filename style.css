@@ -337,12 +337,15 @@ textarea:focus {
 #drawToolBtn.active,
 #eraserDrawToolBtn.active,
 #toggleLightingEditor.active,
+#toggleFogEditor.active,
 #lightToolBtn.active,
 #wallToolBtn.active,
 #doorToolBtn.active,
 #moveToolBtn.active,
 #eraseToolBtn.active,
-#boardsTabs button.active {
+#boardsTabs button.active,
+#fogBrushBtn.active,
+#fogEraserBtn.active {
   background: var(--primary-active);
   color: var(--color-text-white);
   border: 2px solid var(--primary-hover);
@@ -354,7 +357,9 @@ textarea:focus {
 #wallToolBtn,
 #doorToolBtn,
 #moveToolBtn,
-#eraseToolBtn {
+#eraseToolBtn,
+#fogBrushBtn,
+#fogEraserBtn {
   transition: all var(--transition-normal);
 }
 
