@@ -78,6 +78,10 @@ let drawSize = 3;
 
 let autoSaveTimer = null;
 const LOCAL_STORAGE_KEY = "miniversus_backup";
+const DB_NAME = "MiniVersusDB";
+const DB_VERSION = 1;
+const STORE_NAME = "SessionStore";
+const DB_KEY = "miniversus_backup";
 
 const DEFAULT_ENTITY_IMAGE = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%23888888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>';
 
@@ -99,8 +103,8 @@ const appState = {
 };
 
 // INICIALIZACION
-function initApp() {
-    const loaded = loadFromLocalStorage();
+async function initApp() {
+    const loaded = await loadFromLocalStorage();
 
     if (!loaded) {
         const defaultBoard = createEmptyBoard();
@@ -123,7 +127,56 @@ function initApp() {
 
 // SISTEMA DE PERSISTENCIA Y AUTOGUARDADO
 
-function saveToLocalStorage() {
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME);
+            }
+        };
+
+        request.onsuccess = (e) => resolve(e.target.result);
+        request.onerror = (e) => reject("Error abriendo IndexedDB: " + e.target.error);
+    });
+}
+
+async function saveToDB(data) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_NAME], "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.put(data, DB_KEY);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function loadFromDB() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_NAME], "readonly");
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.get(DB_KEY);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function removeFromDB() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_NAME], "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.delete(DB_KEY);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+async function saveToLocalStorage() {
     const currentBoard = getCurrentBoard();
     if (currentBoard) {
         const notesTextArea = document.getElementById("sessionNotes");
@@ -137,22 +190,32 @@ function saveToLocalStorage() {
         entityBank: window.entityBank
     };
 
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
-    console.log("Sesión autoguardada:", new Date().toLocaleTimeString());
-    
-    logEvent('system', 'Sesión guardada automáticamente');
+    try {
+        await saveToDB(dataToSave);
+        console.log("Sesión guardada en IndexedDB:", new Date().toLocaleTimeString());
+        // No logueamos al logEvent de la UI para no saturar, o solo en guardado manual
+    } catch (e) {
+        console.error("Error al guardar en base de datos:", e);
+    }
 }
 
-function loadFromLocalStorage() {
-    const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (!savedData) return false;
-
+async function loadFromLocalStorage() {
     try {
-        const data = JSON.parse(savedData);
-        
-        Object.assign(appState, data.appState);
-        
-        window.entityBank = data.entityBank || [];
+        let savedData = await loadFromDB();
+
+        const legacyData = localStorage.getItem("miniversus_backup");
+        if (!savedData && legacyData) {
+            console.log("Migrando datos de LocalStorage a IndexedDB...");
+            savedData = JSON.parse(legacyData);
+            await saveToDB(savedData);
+            localStorage.removeItem("miniversus_backup");
+            logEvent('system', 'Datos migrados correctamente a la nueva base de datos');
+        }
+
+        if (!savedData) return false;
+
+        Object.assign(appState, savedData.appState);
+        window.entityBank = savedData.entityBank || [];
 
         document.getElementById("autoSaveToggle").checked = appState.autoSaveEnabled;
         document.getElementById("autoSaveIntervalInput").value = appState.autoSaveInterval;
@@ -165,13 +228,13 @@ function loadFromLocalStorage() {
     }
 }
 
-function updateAutoSaveSettings() {
+async function updateAutoSaveSettings() {
     let saveToggle = document.getElementById("autoSaveToggle").checked;
 
     if (saveToggle === false) {
-        alert("Al desactivar esta opción se eliminaron los datos guardados anteriormente. Se recomienda exportar si no quieres perder los datos.");
-
-        localStorage.removeItem(LOCAL_STORAGE_KEY);
+        alert("Al desactivar esta opción se eliminaron los datos guardados. Se recomienda exportar si no quieres perder los datos.");
+        localStorage.removeItem("miniversus_backup");
+        await removeFromDB();
     }
 
     appState.autoSaveEnabled = saveToggle;
@@ -189,11 +252,12 @@ function startAutoSaveTimer() {
     }
 }
 
-function resetSession() {    
-    const confirm1 = confirm("¡ATENCIÓN! Esto borrará todos los tableros, entidades y datos guardados en este navegador y reiniciará la sesión. Se recomienda exportar los datos. ¿Proceder?");
+async function resetSession() {    
+    const confirm1 = confirm("¡ATENCIÓN! Esto borrará todos los tableros, entidades y datos guardados. Se recomienda exportar antes. ¿Proceder?");
     
     if (confirm1) {
-        localStorage.removeItem(LOCAL_STORAGE_KEY);
+        localStorage.removeItem("miniversus_backup");
+        await removeFromDB();
         location.reload();
     }
 }
