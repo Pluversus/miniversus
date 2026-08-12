@@ -37,6 +37,12 @@ const fogBrushBtn = document.getElementById("fogBrushBtn");
 const fogEraserBtn = document.getElementById("fogEraserBtn");
 const toggleFogEditor = document.getElementById("toggleFogEditor");
 
+let currentZoom = 1;
+const ZOOM_SPEED = 0.05;
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 3;
+const BOARD_MARGIN = 500;
+
 let lightingDirty = true;
 let lightingEditor = false;
 let lightingTool = "light";
@@ -135,6 +141,7 @@ async function initApp() {
     selectFogTool("eraser", fogEraserBtn)
     
     startAutoSaveTimer();
+    centerView();
 }
 
 // SISTEMA DE PERSISTENCIA Y AUTOGUARDADO
@@ -328,17 +335,17 @@ function renderBoardTabs() {
 }
 
 function syncAllCanvases() {
-    const { width, height } = getCurrentBoard().map;
-    const canvases = [drawCanvas, fogCanvas, fogMaskCanvas, measureCanvas];
-
+    const boardData = getCurrentBoard();
+    if(!boardData) return;
+    const { width, height } = boardData.map;
+    
+    const canvases = [drawCanvas, fogCanvas, lightingCanvas, measureCanvas];
     canvases.forEach(canvas => {
         canvas.width = width;
         canvas.height = height;
         canvas.style.width = `${width}px`;
         canvas.style.height = `${height}px`;
     });
-
-    syncLightingCanvas();
 }
 
 function resizeBoard() {
@@ -348,19 +355,19 @@ function resizeBoard() {
     const currentBoard = getCurrentBoard();
     const oldGridSize = currentBoard.map.gridSize || GRID_SIZE;
 
+    GRID_SIZE = newGridSize;
+    currentBoard.map.gridSize = GRID_SIZE;
+
     if (oldGridSize > 0 && oldGridSize !== newGridSize) {
         const factor = newGridSize / oldGridSize;
 
         currentBoard.entities.forEach(entity => {
-            entity.x = Math.round((entity.x * factor) / newGridSize) * newGridSize;
-            entity.y = Math.round((entity.y * factor) / newGridSize) * newGridSize;
+            entity.x = Math.round((entity.x * factor) / GRID_SIZE) * GRID_SIZE;
+            entity.y = Math.round((entity.y * factor) / GRID_SIZE) * GRID_SIZE;
 
-            validateEntityPosition(entity, currentBoard.map.width, currentBoard.map.height, newGridSize);
+            validateEntityPosition(entity, currentBoard.map.width, currentBoard.map.height, GRID_SIZE);
         });
     }
-
-    GRID_SIZE = newGridSize;
-    currentBoard.map.gridSize = GRID_SIZE;
 
     syncGrid();
     renderCurrentBoard();
@@ -373,6 +380,37 @@ function syncGrid() {
     grid.style.width = `${width}px`;
     grid.style.height = `${height}px`;
     syncAllCanvases();
+}
+
+function updateBoardLayoutForZoom() {
+    const boardData = getCurrentBoard();
+    if (!boardData) return;
+    
+    board.style.transformOrigin = "0 0";
+    board.style.transform = `scale(${currentZoom})`;
+    
+    const extraWidth = boardData.map.width * (currentZoom - 1);
+    const extraHeight = boardData.map.height * (currentZoom - 1);
+    
+    board.style.marginRight = `${BOARD_MARGIN + extraWidth}px`;
+    board.style.marginBottom = `${BOARD_MARGIN + extraHeight}px`;
+}
+
+function centerView() {
+    const viewport = document.getElementById("viewport");
+    const boardData = getCurrentBoard();
+    if (!boardData) return;
+
+    updateBoardLayoutForZoom(); 
+
+    const zoomedWidth = boardData.map.width * currentZoom;
+    const zoomedHeight = boardData.map.height * currentZoom;
+
+    const scrollX = BOARD_MARGIN + (zoomedWidth - viewport.clientWidth) / 2;
+    const scrollY = BOARD_MARGIN + (zoomedHeight - viewport.clientHeight) / 2;
+
+    viewport.scrollLeft = scrollX;
+    viewport.scrollTop = scrollY;
 }
 
 function exportBoard() {
@@ -472,6 +510,7 @@ function renderCurrentBoard() {
     mapImage.onload = () => {
         imageWidth = mapImage.naturalWidth;
         imageHeight = mapImage.naturalHeight;
+        centerView();
     };
     mapImage.src = getImgData(boardData.map.image);
 
@@ -480,6 +519,10 @@ function renderCurrentBoard() {
 
     boardStateToDom(boardData);
     boardData.entities.forEach(createEntityToken);
+
+    board.style.width = `${boardData.map.width}px`;
+    board.style.height = `${boardData.map.height}px`;
+    updateBoardLayoutForZoom();
 
     syncAllCanvases();
 
@@ -554,15 +597,15 @@ function applyMapScale() {
     MAP_SCALE = value;
 
     if (!imageWidth || imageWidth === 0) {
-        imageWidth = mapImage.naturalWidth || (boardData.map.baseWidth / (boardData.map.scale || 1));
-        imageHeight = mapImage.naturalHeight || (boardData.map.baseHeight / (boardData.map.scale || 1));
+        imageWidth = mapImage.naturalWidth || boardData.map.baseWidth;
+        imageHeight = mapImage.naturalHeight || boardData.map.baseHeight;
     }
 
     const newWidth = imageWidth * MAP_SCALE;
     const newHeight = imageHeight * MAP_SCALE;
 
-    const scaleFactorX = newWidth / oldWidth;
-    const scaleFactorY = newHeight / oldHeight;
+    const scaleFactorX = newWidth / (oldWidth || newWidth);
+    const scaleFactorY = newHeight / (oldHeight || newHeight);
 
     boardData.map.width = newWidth;
     boardData.map.height = newHeight;
@@ -571,14 +614,14 @@ function applyMapScale() {
     board.style.height = `${newHeight}px`;
     mapImage.style.width = `${newWidth}px`;
     mapImage.style.height = `${newHeight}px`;
+    updateBoardLayoutForZoom();
 
-    if (oldWidth > 0 && oldHeight > 0) {
-        boardData.entities.forEach(entity => {
-            entity.x = Math.round((entity.x * scaleFactorX) / GRID_SIZE) * GRID_SIZE;
-            entity.y = Math.round((entity.y * scaleFactorY) / GRID_SIZE) * GRID_SIZE;
-            validateEntityPosition(entity, newWidth, newHeight, GRID_SIZE);
-        });
-    }
+    boardData.entities.forEach(entity => {
+        entity.x = Math.round((entity.x * scaleFactorX) / GRID_SIZE) * GRID_SIZE;
+        entity.y = Math.round((entity.y * scaleFactorY) / GRID_SIZE) * GRID_SIZE;
+        
+        validateEntityPosition(entity, newWidth, newHeight, GRID_SIZE);
+    });
 
     syncGrid();
     invalidateLighting();
@@ -661,6 +704,47 @@ function updateTokenVisibility(){
 
         token.style.opacity = (visibleByFog && visibleByLight) ? "1" : "0";
     });
+}
+
+function applyZoom(delta, mouseX = null, mouseY = null) {
+    const viewport = document.getElementById("viewport");
+    const boardData = getCurrentBoard();
+    if (!boardData) return;
+
+    const oldZoom = currentZoom;
+
+    if (delta > 0) {
+        currentZoom = Math.min(currentZoom + ZOOM_SPEED, MAX_ZOOM);
+    } else {
+        currentZoom = Math.max(currentZoom - ZOOM_SPEED, MIN_ZOOM);
+    }
+
+    if (oldZoom === currentZoom) return;
+
+    let focalClientX, focalClientY;
+    if (mouseX !== null && mouseY !== null) {
+        focalClientX = mouseX;
+        focalClientY = mouseY;
+    } else {
+        const viewportRect = viewport.getBoundingClientRect();
+        focalClientX = viewportRect.left + viewport.clientWidth / 2;
+        focalClientY = viewportRect.top + viewport.clientHeight / 2;
+    }
+
+    const viewportRect = viewport.getBoundingClientRect();
+    const viewX = focalClientX - viewportRect.left + viewport.scrollLeft;
+    const viewY = focalClientY - viewportRect.top + viewport.scrollTop;
+
+    const unscaledX = (viewX - BOARD_MARGIN) / oldZoom;
+    const unscaledY = (viewY - BOARD_MARGIN) / oldZoom;
+
+    updateBoardLayoutForZoom();
+
+    const newScrollX = BOARD_MARGIN + (unscaledX * currentZoom) - (focalClientX - viewportRect.left);
+    const newScrollY = BOARD_MARGIN + (unscaledY * currentZoom) - (focalClientY - viewportRect.top);
+
+    viewport.scrollLeft = newScrollX;
+    viewport.scrollTop = newScrollY;
 }
 
 // BANCO DE IMAGENES
@@ -822,9 +906,16 @@ function clearMeasurement() {
 }
 
 // HERRAMIENTA DE DIBUJO
+function getAdjustedCoords(e) {
+    const rect = board.getBoundingClientRect();
+    return {
+        x: (e.clientX - rect.left) / currentZoom,
+        y: (e.clientY - rect.top) / currentZoom
+    };
+}
+
 function getCanvasCoords(e) {
-    const rect = drawCanvas.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    return getAdjustedCoords(e);
 }
 
 function startDrawing(e) {
@@ -944,6 +1035,12 @@ function syncLightingCanvas() {
         lightingCanvas.height = board.clientHeight;
         invalidateLighting();
     }
+}
+
+function resetLight() {
+    getCurrentBoard().lighting.lights = [];
+    getCurrentBoard().lighting.walls = [];
+    invalidateLighting();
 }
 
 function raySegmentIntersection(ray, segment) {
@@ -1365,7 +1462,6 @@ function makeDraggable(element){
     let offsetX = 0, offsetY = 0;
     let isDragging = false;
     let dragStarted = false;
-    let startX = 0, startY = 0;
 
     element.addEventListener("mousedown", (e) => {
 
@@ -1382,35 +1478,29 @@ function makeDraggable(element){
         isDragging = true;
         dragStarted = false;
 
-        startX = e.clientX;
-        startY = e.clientY;
-
-        const rect = element.getBoundingClientRect();
-        offsetX = e.clientX - rect.left;
-        offsetY = e.clientY - rect.top;
-        element.style.zIndex = 999;
+        const coords = getAdjustedCoords(e);
+        offsetX = coords.x - element.entityData.x;
+        offsetY = coords.y - element.entityData.y;
+        
+        element.style.zIndex = 1000;
 
         const onMouseMove = (moveEvent) => {
             if (moveEvent.altKey || lightingEditor || drawMode || measureMode || !isDragging || isPanning) return;
 
-            const dx = Math.abs(moveEvent.clientX - startX);
-            const dy = Math.abs(moveEvent.clientY - startY);
+            const currentCoords = getAdjustedCoords(moveEvent);
+            let x = currentCoords.x - offsetX;
+            let y = currentCoords.y - offsetY;
 
-            if(dx > 5 || dy > 5){
-                dragStarted = true;
-            }
-
-            const boardRect = board.getBoundingClientRect();
-            let x = moveEvent.clientX - boardRect.left - offsetX;
-            let y = moveEvent.clientY - boardRect.top - offsetY;
+            dragStarted = true;
 
             // Snap a la cuadrícula
             x = Math.round(x / GRID_SIZE) * GRID_SIZE;
             y = Math.round(y / GRID_SIZE) * GRID_SIZE;
 
             // Límites
-            x = Math.max(0, Math.min(x, board.clientWidth - element.clientWidth));
-            y = Math.max(0, Math.min(y, board.clientHeight - element.clientHeight));
+            const b = getCurrentBoard();
+            x = Math.max(0, Math.min(x, b.map.width - (element.entityData.size * GRID_SIZE)));
+            y = Math.max(0, Math.min(y, b.map.height - (element.entityData.size * GRID_SIZE)));
 
             element.style.left = `${x}px`;
             element.style.top = `${y}px`;
@@ -1419,16 +1509,11 @@ function makeDraggable(element){
 
             moveTooltip(moveEvent);
 
-            invalidateLighting();
-
             if(element.entityData.type === "character"){
-                revealVisionSimple({
-                    x: element.entityData.x,
-                    y: element.entityData.y,
-                    radius: characterFogRadius
-                });
+                revealVisionSimple({ x: x + (element.entityData.size * GRID_SIZE)/2, y: y + (element.entityData.size * GRID_SIZE)/2, radius: characterFogRadius });
             }
 
+            invalidateLighting();
             invalidateFog();
             syncEntityToState(element);
         };
@@ -2558,9 +2643,9 @@ function setupBoardDropZone() {
         try {
             const template = JSON.parse(rawData);
             
-            const rect = boardContainer.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
+            const coords = getAdjustedCoords(e);
+            const mouseX = coords.x;
+            const mouseY = coords.y;
 
             const gridX = Math.floor(mouseX / GRID_SIZE) * GRID_SIZE;
             const gridY = Math.floor(mouseY / GRID_SIZE) * GRID_SIZE;
@@ -3028,11 +3113,25 @@ function executeAttackOnTarget(targetToken) {
         syncEntityToState(targetToken);
     }
 
+    targetData.statuses = targetData.statuses || [];
+    const appliedStatusNames = (atk.appliedStatuses || []).map(s => {
+        targetData.statuses.push(structuredClone(s));
+        MacroSystem.emit('status_added', targetData, { status: s.name, statusData: s, entityData: attackerData });
+        return s.name;
+    });
+    if (appliedStatusNames.length) syncEntityToState(targetToken);
+
+    if (pendingAttack.category === 'weapon') {
+        MacroSystem.emit('weapon_used', attackerData, { weapon: atk.name, damage: finalDamage, targetData: targetToken.entityData });
+    } else if (pendingAttack.category === 'ability') {
+        MacroSystem.emit('ability_used', attackerData, { ability: atk.name, damage: finalDamage, targetData: targetToken.entityData });
+    }
+
     const color = isCrit ? "#fbbf24" : "#ef4444";
     const critPrefix = isCrit ? "¡CRÍTICO! " : "";
     showFloatingText(targetToken, `${critPrefix}-${finalDamage} HP`, color);
 
-    logEvent("attack", `${attackerData.name} usó ${weaponName} contra ${targetData.name}: ${critText}${finalDamage} de daño. (Vida restante: ${currentHp}/${maxHp})`, {
+    logEvent("attack", `${attackerData.name} usó ${atk.name} contra ${targetData.name}: ${critPrefix}${finalDamage} de daño.`, {
         attacker: attackerData.name,
         target: targetData.name,
         damage: finalDamage,
@@ -3566,22 +3665,18 @@ function disableEditors() {
 }
 
 function validateEntityPosition(entity, mapWidth, mapHeight, gridSize) {
-    const entityWidth = entity.size * gridSize;
-    const entityHeight = entity.size * gridSize;
+    const entityWidth = (entity.size || 1) * gridSize;
+    const entityHeight = (entity.size || 1) * gridSize;
 
-    const isOutOfBounds = 
-        entity.x < 0 || 
-        entity.y < 0 || 
-        (entity.x + entityWidth) > mapWidth || 
-        (entity.y + entityHeight) > mapHeight;
-
-    if (isOutOfBounds) {
-        const centerX = Math.floor((mapWidth / 2) / gridSize) * gridSize;
-        const centerY = Math.floor((mapHeight / 2) / gridSize) * gridSize;
-
-        entity.x = centerX;
-        entity.y = centerY;
+    if (entity.x + entityWidth > mapWidth) {
+        entity.x = Math.max(0, Math.floor((mapWidth - entityWidth) / gridSize) * gridSize);
     }
+    if (entity.x < 0) entity.x = 0;
+
+    if (entity.y + entityHeight > mapHeight) {
+        entity.y = Math.max(0, Math.floor((mapHeight - entityHeight) / gridSize) * gridSize);
+    }
+    if (entity.y < 0) entity.y = 0;
 }
 
 function showToast(message) {
@@ -3784,23 +3879,39 @@ document.getElementById("statsContainer").addEventListener("click", (e) => {
     }
 });
 
+// ZOOM (CTRL + MOUSEWHEEL)
+window.addEventListener('wheel', (e) => {
+    if (e.ctrlKey) {
+        e.preventDefault();
+        applyZoom(e.deltaY < 0 ? 1 : -1, e.clientX, e.clientY);
+    }
+}, { passive: false });
+
 // PANNING GLOBAL (ALT + CLIC)
 document.addEventListener("mousedown", (e) => {
-    if(!e.altKey) return;
+    // Si no está presionada la tecla Alt, no hacer nada
+    if (!e.altKey) return;
 
+    const viewport = document.getElementById("viewport");
     isPanning = true;
     document.body.classList.add("alt-dragging");
+
     panStartX = e.clientX;
     panStartY = e.clientY;
-    scrollStartX = window.scrollX;
-    scrollStartY = window.scrollY;
+
+    scrollStartX = viewport.scrollLeft;
+    scrollStartY = viewport.scrollTop;
+
     e.preventDefault();
 
     const onPanMove = (moveEvent) => {
-        if(!isPanning) return;
+        if (!isPanning) return;
+
         const dx = moveEvent.clientX - panStartX;
         const dy = moveEvent.clientY - panStartY;
-        window.scrollTo(scrollStartX - dx, scrollStartY - dy);
+
+        viewport.scrollLeft = scrollStartX - dx;
+        viewport.scrollTop = scrollStartY - dy;
     };
 
     const onPanEnd = () => {
@@ -3833,6 +3944,10 @@ document.getElementById("imageUpload").parentElement.onclick = (e) => {
             
             b.map.width = img.width * (b.map.scale || 1);
             b.map.height = img.height * (b.map.scale || 1);
+
+            b.entities.forEach(entity => {
+                validateEntityPosition(entity, b.map.width, b.map.height, b.map.gridSize);
+            });
             
             mapImage.src = dataUrl; 
             board.style.width = `${b.map.width}px`;
@@ -4089,13 +4204,15 @@ document.getElementById("characterFogRadius").addEventListener("change", e => {
 board.addEventListener("mousedown", e => {
     if (e.altKey) return;
 
+    const coords = getAdjustedCoords(e);
+    const x = coords.x;
+    const y = coords.y;
+
     if (fogEditorMode) {
-        const rect = board.getBoundingClientRect();
         const paintFog = (moveEvent) => {
-            const mx = moveEvent.clientX - rect.left;
-            const my = moveEvent.clientY - rect.top;
-            const cellX = Math.floor(mx / GRID_SIZE);
-            const cellY = Math.floor(my / GRID_SIZE);
+            const mCoords = getAdjustedCoords(moveEvent);
+            const cellX = Math.floor(mCoords.x / GRID_SIZE);
+            const cellY = Math.floor(mCoords.y / GRID_SIZE);
             const key = `${cellX},${cellY}`;
             
             const boardData = getCurrentBoard();
@@ -4106,9 +4223,7 @@ board.addEventListener("mousedown", e => {
             }
             invalidateFog();
         };
-
         paintFog(e);
-
         const onFogMove = (moveEvent) => paintFog(moveEvent);
         const onFogUp = () => {
             document.removeEventListener("mousemove", onFogMove);
@@ -4127,21 +4242,18 @@ board.addEventListener("mousedown", e => {
     if (!lightingEditor || isPanning || isDraggingToken) return;
     if (e.target.closest(".token")) return;
 
-    const rect = board.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
     const lighting = getCurrentBoard().lighting;
 
     if (lightingTool === "move") {
         const lightIndex = findLightAt(x, y);
         if (lightIndex !== -1) {
-            movingLight = lighting.lights[lightIndex];
+            movingLight = getCurrentBoard().lighting.lights[lightIndex];
             dragOffsetX = x - movingLight.x;
             dragOffsetY = y - movingLight.y;
         } else {
             const wallIndex = findWallAt(x, y);
             if (wallIndex !== -1) {
-                movingWall = lighting.walls[wallIndex];
+                movingWall = getCurrentBoard().lighting.walls[wallIndex];
                 lastMouseX = x;
                 lastMouseY = y;
             }
@@ -4149,19 +4261,17 @@ board.addEventListener("mousedown", e => {
 
         if (movingLight || movingWall) {
             const onLightDrag = (moveEvent) => {
-                const r = board.getBoundingClientRect();
-                const mx = moveEvent.clientX - r.left;
-                const my = moveEvent.clientY - r.top;
-
+                const mCoords = getAdjustedCoords(moveEvent);
                 if (movingLight) {
-                    movingLight.x = mx - dragOffsetX;
-                    movingLight.y = my - dragOffsetY;
+                    movingLight.x = mCoords.x - dragOffsetX;
+                    movingLight.y = mCoords.y - dragOffsetY;
                 } else if (movingWall) {
-                    const dx = mx - lastMouseX;
-                    const dy = my - lastMouseY;
+                    const dx = mCoords.x - lastMouseX;
+                    const dy = mCoords.y - lastMouseY;
                     movingWall.x1 += dx; movingWall.y1 += dy;
                     movingWall.x2 += dx; movingWall.y2 += dy;
-                    lastMouseX = mx; lastMouseY = my;
+                    lastMouseX = mCoords.x;
+                    lastMouseY = mCoords.y;
                 }
                 invalidateLighting();
             };
@@ -4209,9 +4319,9 @@ board.addEventListener("mousedown", e => {
 
         const onWallUp = (upEvent) => {
             if (!drawingWall) return;
-            const r = board.getBoundingClientRect();
-            const wx = upEvent.clientX - r.left;
-            const wy = upEvent.clientY - r.top;
+            const coords = getAdjustedCoords(upEvent);
+            const wx = coords.x;
+            const wy = coords.y;
 
             const wall = {
                 id: crypto.randomUUID(),
@@ -4235,6 +4345,10 @@ board.addEventListener("mousedown", e => {
 board.addEventListener("click", e => {
     if (e.altKey || isPanning) return;
 
+    const coords = getAdjustedCoords(e);
+    const x = coords.x;
+    const y = coords.y;
+
     const token = e.target.closest(".token");
     if (token) {
         if (token.wasDragged) {
@@ -4255,10 +4369,6 @@ board.addEventListener("click", e => {
         openEntityMenu(token, e);
         return;
     }
-
-    const rect = board.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
 
     if (measureMode) {
         if (!measureStart) {
@@ -4284,8 +4394,8 @@ board.addEventListener("mousemove", e => {
     if (e.altKey || isDraggingToken || isPanning) return;
 
     if (measureMode && measureStart) {
-        const rect = board.getBoundingClientRect();
-        measurePreview = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        const coords = getAdjustedCoords(e);
+        measurePreview = { x: coords.x, y: coords.y };
         drawMeasurement(measureStart, measurePreview);
         return;
     }
