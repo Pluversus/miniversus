@@ -37,6 +37,8 @@ const fogBrushBtn = document.getElementById("fogBrushBtn");
 const fogEraserBtn = document.getElementById("fogEraserBtn");
 const toggleFogEditor = document.getElementById("toggleFogEditor");
 
+let snapToGrid = true;
+
 let currentZoom = 1;
 const ZOOM_SPEED = 0.05;
 const MIN_ZOOM = 0.1;
@@ -115,7 +117,8 @@ const appState = {
     sessionLog: [],
     imageBank: [],
     autoSaveEnabled: true,
-    autoSaveInterval: 5
+    autoSaveInterval: 5,
+    snapToGrid: false
 };
 
 // INICIALIZACION
@@ -126,6 +129,10 @@ async function initApp() {
         const defaultBoard = createEmptyBoard();
         appState.boards.push(defaultBoard);
         appState.activeBoardId = defaultBoard.id;
+        if (appState.snapToGrid !== undefined) {
+            snapToGrid = appState.snapToGrid;
+            document.getElementById("snapToGridToggle").checked = snapToGrid;
+        }
         
         document.getElementById("autoSaveToggle").checked = appState.autoSaveEnabled;
         document.getElementById("autoSaveIntervalInput").value = appState.autoSaveInterval;
@@ -212,7 +219,6 @@ async function saveToLocalStorage() {
     try {
         await saveToDB(dataToSave);
         console.log("Sesión guardada en IndexedDB:", new Date().toLocaleTimeString());
-        // No logueamos al logEvent de la UI para no saturar, o solo en guardado manual
     } catch (e) {
         console.error("Error al guardar en base de datos:", e);
     }
@@ -394,6 +400,11 @@ function updateBoardLayoutForZoom() {
     
     board.style.marginRight = `${BOARD_MARGIN + extraWidth}px`;
     board.style.marginBottom = `${BOARD_MARGIN + extraHeight}px`;
+}
+
+function updateSnapSettings() {
+    snapToGrid = document.getElementById("snapToGridToggle").checked;
+    appState.snapToGrid = snapToGrid;
 }
 
 function centerView() {
@@ -1494,8 +1505,10 @@ function makeDraggable(element){
             dragStarted = true;
 
             // Snap a la cuadrícula
-            x = Math.round(x / GRID_SIZE) * GRID_SIZE;
-            y = Math.round(y / GRID_SIZE) * GRID_SIZE;
+            if (snapToGrid) {
+                x = Math.round(x / GRID_SIZE) * GRID_SIZE;
+                y = Math.round(y / GRID_SIZE) * GRID_SIZE;
+            }
 
             // Límites
             const b = getCurrentBoard();
