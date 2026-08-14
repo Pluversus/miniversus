@@ -380,6 +380,69 @@ function resizeBoard() {
     resetFog();
 }
 
+function guessGridSize(width, height) {
+    const standardSizes = [140, 100, 70, 64, 50, 40];
+
+    return standardSizes.reduce((best, size) => {
+        const widthError = Math.min(
+            width % size,
+            size - (width % size)
+        ) / size;
+
+        const heightError = Math.min(
+            height % size,
+            size - (height % size)
+        ) / size;
+
+        const distance = widthError + heightError;
+
+        if (distance < best.distance) {
+            return { size, distance };
+        }
+
+        if (distance === best.distance && size < best.size) {
+            return { size, distance };
+        }
+
+        return best;
+    }, { size: 70, distance: Infinity }).size;
+}
+
+function autoAdjustGridColor(img) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    canvas.width = 50;
+    canvas.height = 50;
+    ctx.drawImage(img, 0, 0, 50, 50);
+
+    const imageData = ctx.getImageData(0, 0, 50, 50);
+    const data = imageData.data;
+    let totalLuminance = 0;
+
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+        totalLuminance += luminance;
+    }
+
+    const avgBrightness = totalLuminance / (canvas.width * canvas.height);
+    const gridElement = document.getElementById("grid");
+
+    if (avgBrightness > 128) {
+        gridElement.classList.add("dark");
+        gridElement.classList.remove("light");
+        console.log("Mapa claro detectado. Ajustando grid a oscuro.");
+    } else {
+        gridElement.classList.add("light");
+        gridElement.classList.remove("dark");
+        console.log("Mapa oscuro detectado. Ajustando grid a claro.");
+    }
+}
+
 function syncGrid() {
     const { width, height } = getCurrentBoard().map;
     grid.style.backgroundSize = `${GRID_SIZE}px ${GRID_SIZE}px`;
@@ -3902,7 +3965,6 @@ window.addEventListener('wheel', (e) => {
 
 // PANNING GLOBAL (ALT + CLIC)
 document.addEventListener("mousedown", (e) => {
-    // Si no está presionada la tecla Alt, no hacer nada
     if (!e.altKey) return;
 
     const viewport = document.getElementById("viewport");
@@ -3950,6 +4012,12 @@ document.getElementById("imageUpload").parentElement.onclick = (e) => {
             const b = getCurrentBoard();
             if (!b) return;
 
+            const detectedGrid = guessGridSize(img.width, img.height);
+            GRID_SIZE = detectedGrid;
+            b.map.gridSize = GRID_SIZE;
+
+            autoAdjustGridColor(img);
+
             b.map.image = imageId; 
             
             imageWidth = img.width;
@@ -3968,6 +4036,7 @@ document.getElementById("imageUpload").parentElement.onclick = (e) => {
             
             syncGrid();
             renderCurrentBoard();
+            showToast(`Grid detectado automáticamente: ${GRID_SIZE}px`);
         };
         img.onerror = () => showToast("Error al procesar la imagen seleccionada");
         img.src = dataUrl;
