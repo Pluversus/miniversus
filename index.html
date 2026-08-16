@@ -268,6 +268,10 @@
                 <button id="doorToolBtn">Puerta</button>
                 <button id="moveToolBtn">Mover</button>
                 <button id="eraseToolBtn">Borrar</button>
+                <div style="display: flex; align-items: center; gap: 10px; background: #1a1a1a; padding: 8px; border-radius: 6px; margin-top: 5px;">
+                    <input type="checkbox" id="wallModeToggle" checked onchange="wallContinuousMode = this.checked; updateWallBanner();">
+                    <span style="font-size: 8.5pt;">Paredes continuas</span>
+                </div>
                 <label>Porcentaje de oscuridad</label>
                 <input type="number" id="darkPercentage" value="55" min="1" max="100">
                 <label>Intensidad de luces</label>
@@ -1505,6 +1509,12 @@
 <div id="targetBanner" class="target-banner hidden">
     <span>Selecciona al objetivo</span>
     <button id="cancelTargetBtn" onclick="cancelTargetSelection()">Cancelar</button>
+</div>
+
+<!-- BANNER DE CONSTRUCCIÓN DE PAREDES -->
+<div id="wallBanner" class="target-banner hidden" style="background: rgba(20, 20, 20, 0.9); border-top: 2px solid #00ff88;">
+    <span id="wallBannerText">Arrastra para crear paredes</span>
+    <button onclick="cancelWallCreation()" style="background: #444; color: #fff; border: 1px solid #666; padding: 4px 10px; cursor: pointer; border-radius: 4px; margin-left: 15px;">Cancelar</button>
 </div>
 
 <!-- CONTENEDOR PARA DAÑO FLOTANTE EN LOS TOKENS -->

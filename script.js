@@ -48,6 +48,7 @@ const BOARD_MARGIN = 500;
 let lightingDirty = true;
 let lightingEditor = false;
 let lightingTool = "light";
+let wallContinuousMode = true;
 
 let fogDirty = false;
 let fogEditorMode = false;
@@ -1421,6 +1422,11 @@ function selectLightingTool(tool, button) {
     lightingTool = tool;
     [lightToolBtn, wallToolBtn, doorToolBtn, moveToolBtn, eraseToolBtn].forEach(btn => btn.classList.remove("active"));
     button.classList.add("active");
+
+    drawingWall = false; 
+    measureCtx.clearRect(0, 0, measureCanvas.width, measureCanvas.height);
+    
+    updateWallBanner();
 }
 
 const rgbCache = new Map();
@@ -3725,6 +3731,7 @@ function disableEditors() {
     drawMode = false;
     eraseMode = false;
     lightingEditor = false;
+    drawingWall = false;
     fogEditorMode = false;
 
     board.classList.remove("measure-mode", "draw-mode", "lighting-editor");
@@ -3769,6 +3776,39 @@ function setTargetBannerVisible(visible) {
         banner.classList.remove("hidden");
     } else {
         banner.classList.add("hidden");
+    }
+}
+
+function updateWallBanner() {
+    const banner = document.getElementById("wallBanner");
+    const text = document.getElementById("wallBannerText");
+    
+    if (lightingTool !== "wall" && lightingTool !== "door") {
+        banner.classList.add("hidden");
+        return;
+    }
+
+    if (wallContinuousMode) {
+        if (drawingWall) {
+            banner.classList.remove("hidden");
+            text.textContent = "Pulsa para colocar pared/puerta. (ESC o Enter para terminar)";
+        } else {
+            banner.classList.add("hidden");
+        }
+    } else {
+        banner.classList.remove("hidden");
+        text.textContent = "Arrastra para crear paredes/puertas.";
+    }
+}
+
+function cancelWallCreation() {
+    drawingWall = false;
+    measureCtx.clearRect(0, 0, measureCanvas.width, measureCanvas.height);
+    
+    if (wallContinuousMode) {
+        updateWallBanner();
+    } else {
+        selectLightingTool("light", document.getElementById("lightToolBtn"));
     }
 }
 
@@ -4177,6 +4217,12 @@ toggleLightingEditor.addEventListener("click", () => {
     if(lightingEditor){
         board.classList.add("lighting-editor");
         toggleLightingEditor.classList.add("active");
+
+        const boardData = getCurrentBoard();
+        if (boardData && !boardData.lighting.enabled) {
+            boardData.lighting.enabled = true;
+            showToast("Iluminación activada automáticamente");
+        }
     }
     updateLightingUI();
     invalidateLighting();
@@ -4248,6 +4294,12 @@ toggleFogEditor.addEventListener("click", () => {
         fogEditorMode = true;
         toggleFogEditor.classList.add("active");
         board.classList.add("measure-mode");
+
+        const boardData = getCurrentBoard();
+        if (boardData && !boardData.fog.enabled) {
+            boardData.fog.enabled = true;
+            showToast("Niebla de guerra activada automáticamente");
+        }
     } else {
         toggleFogEditor.classList.remove("active");
         board.classList.remove("measure-mode");
@@ -4395,32 +4447,57 @@ board.addEventListener("mousedown", e => {
     }
 
     if (lightingTool === "wall" || lightingTool === "door") {
-        drawingWall = true;
-        wallStartX = x;
-        wallStartY = y;
+        const coords = getAdjustedCoords(e);
+        const x = coords.x;
+        const y = coords.y;
 
-        const onWallUp = (upEvent) => {
-            if (!drawingWall) return;
-            const coords = getAdjustedCoords(upEvent);
-            const wx = coords.x;
-            const wy = coords.y;
+        if (wallContinuousMode) {
+            // LÓGICA MODO CONTINUO
+            if (!drawingWall) {
+                drawingWall = true;
+                wallStartX = x;
+                wallStartY = y;
+            } else {
+                const wall = {
+                    id: crypto.randomUUID(),
+                    type: lightingTool === "door" ? "door" : "wall",
+                    opened: lightingTool === "door",
+                    x1: wallStartX, y1: wallStartY,
+                    x2: x, y2: y
+                };
+                getCurrentBoard().lighting.walls.push(wall);
+                getCurrentBoard().undoWalls.push({ type: "wall", wallId: wall.id });
+                
+                wallStartX = x;
+                wallStartY = y;
+                invalidateLighting();
+            }
+        } else {
+            // LÓGICA MODO SIMPLE (Original)
+            drawingWall = true;
+            wallStartX = x;
+            wallStartY = y;
 
-            const wall = {
-                id: crypto.randomUUID(),
-                type: lightingTool === "door" ? "door" : "wall",
-                opened: lightingTool === "door",
-                x1: wallStartX, y1: wallStartY,
-                x2: wx, y2: wy
+            const onWallUp = (upEvent) => {
+                if (!drawingWall) return;
+                const upCoords = getAdjustedCoords(upEvent);
+                const wall = {
+                    id: crypto.randomUUID(),
+                    type: lightingTool === "door" ? "door" : "wall",
+                    opened: lightingTool === "door",
+                    x1: wallStartX, y1: wallStartY,
+                    x2: upCoords.x, y2: upCoords.y
+                };
+                getCurrentBoard().lighting.walls.push(wall);
+                getCurrentBoard().undoWalls.push({ type: "wall", wallId: wall.id });
+                drawingWall = false;
+                invalidateLighting();
+                document.removeEventListener("mouseup", onWallUp);
             };
-
-            getCurrentBoard().lighting.walls.push(wall);
-            getCurrentBoard().undoWalls.push({ type: "wall", wallId: wall.id });
-            drawingWall = false;
-            invalidateLighting();
-            document.removeEventListener("mouseup", onWallUp);
-        };
-
-        document.addEventListener("mouseup", onWallUp);
+            document.addEventListener("mouseup", onWallUp);
+        }
+        updateWallBanner();
+        return;
     }
 });
 
@@ -4482,6 +4559,20 @@ board.addEventListener("mousemove", e => {
         return;
     }
 
+    if (drawingWall && (lightingTool === "wall" || lightingTool === "door")) {
+        const coords = getAdjustedCoords(e);
+        measureCtx.clearRect(0, 0, measureCanvas.width, measureCanvas.height);
+        measureCtx.beginPath();
+        measureCtx.strokeStyle = lightingTool === "door" ? "#ff3333" : "#00ff88";
+        measureCtx.setLineDash([5, 5]);
+        measureCtx.lineWidth = 3;
+        measureCtx.moveTo(wallStartX, wallStartY);
+        measureCtx.lineTo(coords.x, coords.y);
+        measureCtx.stroke();
+        measureCtx.setLineDash([]);
+        return;
+    }
+
     const token = e.target.closest(".token");
     if (token) {
         moveTooltip(e);
@@ -4533,6 +4624,14 @@ document.addEventListener("keydown", event => {
         if (!undoItem) return;
         currentBoard.lighting.walls = currentBoard.lighting.walls.filter(w => w.id !== undoItem.wallId);
         invalidateLighting();
+    }
+});
+
+document.addEventListener("keydown", e => {
+    if ((e.key === "Escape" || e.key === "Enter") && drawingWall) {
+        drawingWall = false;
+        measureCtx.clearRect(0, 0, measureCanvas.width, measureCanvas.height);
+        updateWallBanner();
     }
 });
 
