@@ -3783,7 +3783,7 @@ function updateWallBanner() {
     const banner = document.getElementById("wallBanner");
     const text = document.getElementById("wallBannerText");
     
-    if (lightingTool !== "wall" && lightingTool !== "door") {
+    if ((lightingTool !== "wall" && lightingTool !== "door") || lightingEditor !== true) {
         banner.classList.add("hidden");
         return;
     }
@@ -4225,6 +4225,7 @@ toggleLightingEditor.addEventListener("click", () => {
         }
     }
     updateLightingUI();
+    updateWallBanner();
     invalidateLighting();
 });
 
