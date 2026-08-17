@@ -661,8 +661,8 @@
 
                 <div style="display: flex; flex-direction: column; gap: 8px;">
                     <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
-                        <code style="color: #01d9ff;">turn_start</code>
-                        <p style="margin: 4px 0 0 0; color: #aaa;">Se dispara cuando se inicia el turno de la entidad.</p>
+                        <code style="color: #01d9ff;">turn_start</code> / <code style="color: #01d9ff;">turn_end</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Se disparan respectivamente cuando se inicia o termina el turno de la entidad en el Gestor de Iniciativa.</p>
                         <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
                             Ejemplo: event.type === 'turn_start'
                         </div>
@@ -881,6 +881,30 @@
                         <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
                             Ejemplo: entity.addStatus({ name: 'Envenenado', duration: 3, type: 'flat_damage', flatDamage: 5 });<br>
                             Ejemplo: entity.removeStatus('Envenenado');
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #22c55e;">
+                        <code style="color: #22c55e;">entity.roll(dados, caras)</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Lanza dados virtualmente y devuelve la suma total. Útil para hacer cálculos aleatorios en tus acciones.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: let cura = entity.roll(2, 6); entity.modifyHp(cura);
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #22c55e;">
+                        <code style="color: #22c55e;">entity.showText(texto, colorHex)</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Muestra un texto animado y flotante sobre el token de la entidad.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.showText("¡Absorbido!", "#a855f7");
+                        </div>
+                    </div>
+
+                    <div style="background: #18181b; padding: 8px; border-radius: 6px; border: 1px solid #22c55e;">
+                        <code style="color: #22c55e;">entity.log(mensaje)</code>
+                        <p style="margin: 4px 0 0 0; color: #aaa;">Imprime un mensaje directo en el "Registro de Sesión" de la aplicación.</p>
+                        <div style="margin-top: 4px; background: #09090b; padding: 4px 8px; border-radius: 4px; font-family: monospace; color: #38bdf8;">
+                            Ejemplo: entity.log("Se ha regenerado como un trol.");
                         </div>
                     </div>
                 </div>

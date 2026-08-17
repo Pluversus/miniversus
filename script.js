@@ -1652,16 +1652,23 @@ const MacroSystem = {
                     if (macro.triggerOnce) {
                         macro.hasExecuted = true;
                     }
-
-                    logEvent('macro', `Macro "${macro.name}" activada en ${entity.name}`);
                 }
             } catch (err) {
                 console.error(`Error ejecutando macro "${macro.name}":`, err);
+                showToast(`Error en macro: ${macro.name}`);
             }
         });
     },
 
     createEntityContext(entity) {
+        // Función interna para sincronizar visualmente el token al modificar datos
+        const sync = () => {
+            const token = Array.from(document.querySelectorAll(".token")).find(t => t.entityData?.id === entity.id);
+            if (token) {
+                updateEntityState(token);
+                syncEntityToState(token);
+            }
+        };
 
         function parseNum(val) {
             if (typeof val === 'number') return val;
@@ -1693,53 +1700,75 @@ const MacroSystem = {
                 const [curr, max] = parseFractionalStat(getStat(entity, "Vida"));
                 const next = Math.max(0, Math.min(max, curr + amount));
                 setStatValue(entity, "Vida", `${next}/${max}`);
+                sync();
                 MacroSystem.emit(amount < 0 ? 'hp_decreased' : 'hp_increased', entity, { amount, current: next });
             },
             modifyMana: (amount) => {
                 const [curr, max] = parseFractionalStat(getStat(entity, "Mana"));
                 const next = Math.max(0, Math.min(max, curr + amount));
                 setStatValue(entity, "Mana", `${next}/${max}`);
+                sync();
                 MacroSystem.emit(amount < 0 ? 'mana_decreased' : 'mana_increased', entity, { amount, current: next });
             },
             addStatus: (statusObj) => {
                 if (!entity.statuses) entity.statuses = [];
                 entity.statuses.push(statusObj);
+                sync();
                 MacroSystem.emit('status_added', entity, { status: statusObj.name });
             },
             removeStatus: (statusName) => {
                 if (!entity.statuses) return;
                 entity.statuses = entity.statuses.filter(s => s.name.toLowerCase() !== statusName.toLowerCase());
+                sync();
                 MacroSystem.emit('status_removed', entity, { status: statusName });
             },
             addAbility: (abilityObj) => {
                 if (!entity.abilities) entity.abilities = [];
                 entity.abilities.push(abilityObj);
+                sync();
                 MacroSystem.emit('ability_added', entity, { ability: abilityObj.name });
             },
             removeAbility: (abilityName) => {
                 if (!entity.abilities) return;
                 entity.abilities = entity.abilities.filter(a => a.name.toLowerCase() !== abilityName.toLowerCase());
+                sync();
                 MacroSystem.emit('ability_removed', entity, { ability: abilityName });
             },
             addItem: (itemObj) => {
                 if (!entity.inventory) entity.inventory = { weapons: [], items: [] };
                 entity.inventory.items.push(itemObj);
+                sync();
                 MacroSystem.emit('item_added', entity, { item: itemObj.name });
             },
             removeItem: (objName) => {
                 if (!entity.inventory?.items) return;
                 entity.inventory.items = entity.inventory.items.filter(i => i.name.toLowerCase() !== objName.toLowerCase());
+                sync();
                 MacroSystem.emit('item_removed', entity, { item: objName });
             },
             addWeapon: (weaponObj) => {
                 if (!entity.inventory) entity.inventory = { weapons: [], items: [] };
                 entity.inventory.weapons.push(weaponObj);
+                sync();
                 MacroSystem.emit('weapon_added', entity, { weapon: weaponObj.name });
             },
             removeWeapon: (weaponName) => {
                 if (!entity.inventory?.weapons) return;
                 entity.inventory.weapons = entity.inventory.weapons.filter(w => w.name.toLowerCase() !== weaponName.toLowerCase());
+                sync();
                 MacroSystem.emit('weapon_removed', entity, { weapon: weaponName });
+            },
+            roll: (qty, faces) => {
+                let total = 0;
+                for (let i = 0; i < qty; i++) total += Math.floor(Math.random() * faces) + 1;
+                return total;
+            },
+            log: (msg) => logEvent('macro', msg),
+            showText: (text, color = "#ffffff") => {
+                const token = Array.from(document.querySelectorAll(".token")).find(t => t.entityData?.id === entity.id);
+                if (token && typeof showFloatingText === "function") {
+                    showFloatingText(token, text, color);
+                }
             }
         };
     },
@@ -1754,6 +1783,165 @@ const MacroSystem = {
         func(ctx, event);
     }
 };
+
+const MACRO_KEYWORDS = [
+    "entity.getHp()", "entity.getMaxHp()", "entity.getMana()", "entity.getMaxMana()",
+    "entity.getStatValue()", "entity.hasItem()", "entity.hasAbility()", "entity.hasWeapon()",
+    "entity.hasStatus()", "entity.modifyHp()", "entity.modifyMana()", "entity.addStatus()",
+    "entity.removeStatus()", "entity.addAbility()", "entity.removeAbility()",
+    "entity.addItem()", "entity.removeItem()", "entity.addWeapon()", "entity.removeWeapon()",
+    "entity.roll()", "entity.log()", "entity.showText()",
+    "event.type", "event.amount", "event.current", "event.casterData", "event.attackerData",
+    "event.ability", "event.weapon", "event.item", "event.status", "event.statusData",
+    "event.entityData", "event.damage", "event.targetData",
+    "'turn_start'", "'turn_end'", "'hp_increased'", "'hp_decreased'", "'mana_decreased'",
+    "'ability_added'", "'ability_removed'", "'weapon_added'", "'weapon_removed'",
+    "'item_added'", "'item_removed'", "'status_added'", "'status_removed'",
+    "'ability_used'", "'skill_used'", "'weapon_used'",
+    "Math.floor()", "Math.ceil()", "Math.round()", "Math.max()", "Math.min()"
+];
+
+function handleMacroAutocomplete(e) {
+    if (e.key !== 'Tab') return;
+    
+    const el = e.target;
+    const cursorPos = el.selectionStart;
+    const textBeforeCursor = el.value.slice(0, cursorPos);
+    
+    const match = textBeforeCursor.match(/[a-zA-Z0-9_.']+$/);
+    if (!match) return;
+    
+    const currentWord = match[0];
+    
+    let searchPrefix = currentWord;
+    let cycleIndex = 0;
+
+    if (el._cyclePrefix && currentWord.toLowerCase() === el._lastSuggestion.toLowerCase()) {
+        searchPrefix = el._cyclePrefix;
+        cycleIndex = el._cycleIndex + 1;
+    } else {
+        el._cyclePrefix = currentWord;
+        cycleIndex = 0;
+    }
+
+    const suggestions = MACRO_KEYWORDS.filter(k => k.toLowerCase().startsWith(searchPrefix.toLowerCase()));
+    
+    if (suggestions.length > 0) {
+        e.preventDefault();
+        
+        cycleIndex = cycleIndex % suggestions.length;
+        const suggestion = suggestions[cycleIndex];
+        
+        const before = el.value.slice(0, cursorPos - currentWord.length);
+        const after = el.value.slice(cursorPos);
+        el.value = before + suggestion + after;
+        
+        const newPos = before.length + suggestion.length;
+        el.setSelectionRange(newPos, newPos);
+        
+        el._cycleIndex = cycleIndex;
+        el._lastSuggestion = suggestion;
+        
+        el.dispatchEvent(new Event('input'));
+    }
+}
+
+function validateMacroSyntax(inputElement, isCondition) {
+    const errorDiv = inputElement.nextElementSibling;
+    const code = inputElement.value;
+    
+    if (!code.trim()) {
+        inputElement.style.outline = "";
+        if (errorDiv) errorDiv.classList.add("hidden");
+        return;
+    }
+
+    let hasError = false;
+    let errorMessage = "";
+
+    // 1. VALIDACIÓN SEMÁNTICA (Comprobar si los métodos/propiedades existen)
+    const entityMatches = code.match(/entity\.([a-zA-Z0-9_]+)/g);
+    if (entityMatches) {
+        const validEntityProps = [
+            "getHp", "getMaxHp", "getMana", "getMaxMana", "getStatValue",
+            "hasItem", "hasAbility", "hasWeapon", "hasStatus",
+            "modifyHp", "modifyMana", "addStatus", "removeStatus",
+            "addAbility", "removeAbility", "addItem", "removeItem",
+            "addWeapon", "removeWeapon", "roll", "log", "showText",
+            "entity"
+        ];
+        
+        for (const match of entityMatches) {
+            const prop = match.split('.')[1];
+            if (!validEntityProps.includes(prop)) {
+                hasError = true;
+                errorMessage = `El método o propiedad '${prop}' no existe en 'entity'.`;
+                break;
+            }
+        }
+    }
+
+    if (!hasError) {
+        const eventMatches = code.match(/event\.([a-zA-Z0-9_]+)/g);
+        if (eventMatches) {
+            const validEventProps = [
+                "type", "amount", "current", "casterData", "attackerData",
+                "ability", "weapon", "item", "status", "statusData",
+                "entityData", "damage", "targetData"
+            ];
+            
+            for (const match of eventMatches) {
+                const prop = match.split('.')[1];
+                if (!validEventProps.includes(prop)) {
+                    hasError = true;
+                    errorMessage = `La propiedad '${prop}' no existe en 'event'.`;
+                    break;
+                }
+            }
+        }
+    }
+
+    // 2. VALIDACIÓN SINTÁCTICA (Revisar si el código JS está bien escrito)
+    if (!hasError) {
+        try {
+            if (isCondition) {
+                new Function('entity', 'event', `return (${code});`);
+            } else {
+                new Function('entity', 'event', code);
+            }
+        } catch (err) {
+            hasError = true;
+            
+            if (err.message.includes("Unexpected token '}'") || err.message.includes("Unexpected token }") || err.message.includes("Unexpected token ')'") || err.message.includes("Unexpected token )")) {
+                if (code.trim().endsWith(".")) {
+                    errorMessage = "Expresión incompleta: Se colocó un punto (.) pero falta la propiedad o método.";
+                } else if (code.trim().match(/[+\-*/=&|<>!]$/)) {
+                    errorMessage = "Expresión incompleta: El código termina en un operador lógico o matemático.";
+                } else {
+                    errorMessage = "Expresión incompleta o error de sintaxis (revisar comillas o paréntesis).";
+                }
+            } else if (err.message.includes("Unexpected end of input")) {
+                errorMessage = "Falta cerrar algún paréntesis '()' o llave '{}'.";
+            } else {
+                errorMessage = "Error de sintaxis: " + err.message;
+            }
+        }
+    }
+    
+    // 3. APLICAR ESTILOS Y MENSAJES DE ERROR
+    if (hasError) {
+        inputElement.style.outline = "2px solid #ef4444";
+        inputElement.style.outlineOffset = "-1px";
+        if (errorDiv) {
+            errorDiv.textContent = "⚠ " + errorMessage;
+            errorDiv.classList.remove("hidden");
+        }
+    } else {
+        inputElement.style.outline = "2px solid #22c55e";
+        inputElement.style.outlineOffset = "-1px";
+        if (errorDiv) errorDiv.classList.add("hidden");
+    }
+}
 
 function setStatValue(entity, name, val) {
     const stat = entity.stats?.find(s => s.name.toLowerCase() === name.toLowerCase());
@@ -2156,14 +2344,27 @@ function addMacroField(data = null) {
         </div>
         <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 6px;">
             <label style="font-size: 7.5pt; color: #a3a3a3;">Condición (JS):</label>
-            <input class="macro-condition" placeholder="event.type === 'hp_decreased'" value="${data?.condition || ''}" style="font-family: monospace; font-size: 8pt;">
+            <input class="macro-condition" placeholder="event.type === 'hp_decreased'" value="${data?.condition || ''}" 
+                style="font-family: monospace; font-size: 8pt;" 
+                oninput="validateMacroSyntax(this, true)" 
+                onkeydown="handleMacroAutocomplete(event)">
+            <div class="macro-error hidden" style="color: #ef4444; font-size: 7.5pt; margin-top: 2px;"></div>
         </div>
         <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 6px;">
             <label style="font-size: 7.5pt; color: #a3a3a3;">Acción:</label>
-            <textarea class="macro-action" rows="10" placeholder="entity.modifyHp(10);" style="font-family: monospace; font-size: 8pt; resize: vertical;">${data?.action || ''}</textarea>
+            <textarea class="macro-action" rows="10" placeholder="entity.modifyHp(10);" 
+                style="font-family: monospace; font-size: 8pt; resize: vertical;" 
+                oninput="validateMacroSyntax(this, false)" 
+                onkeydown="handleMacroAutocomplete(event)">${data?.action || ''}</textarea>
+            <div class="macro-error hidden" style="color: #ef4444; font-size: 7.5pt; margin-top: 2px;"></div>
         </div>
     `;
     document.getElementById("macrosContainer").appendChild(item);
+    
+    const conditionInput = item.querySelector('.macro-condition');
+    const actionInput = item.querySelector('.macro-action');
+    if (data?.condition) validateMacroSyntax(conditionInput, true);
+    if (data?.action) validateMacroSyntax(actionInput, false);
 }
 
 function getAppliedStatusesFromContainer(parentEl) {
@@ -3481,8 +3682,18 @@ function rollAllInitiatives() {
 
 function nextTurn() {
     if (!initiativeList.length) return;
+    
+    const currentActiveItem = initiativeList[currentTurnIndex];
+    if (currentActiveItem) {
+        const currentEntity = getCurrentBoard()?.entities?.find(e => e.id === currentActiveItem.id);
+        if (currentEntity) {
+            MacroSystem.emit('turn_end', currentEntity, {});
+        }
+    }
+
     currentTurnIndex = (currentTurnIndex + 1) % initiativeList.length;
-    logEvent('initiative', `Empieza el turno de: ${nextEntity.name}`);
+    const nextEntity = initiativeList[currentTurnIndex];
+    logEvent('initiative', `Empieza el turno de: ${nextEntity?.name || 'Desconocido'}`);
     renderInitiativeTracker();
     startTurn(currentTurnIndex);
 }
@@ -3495,6 +3706,9 @@ function startTurn(index) {
     if (!entity) return;
 
     const tokenElement = Array.from(document.querySelectorAll(".token")).find(t => t.entityData?.id === entity.id);
+    
+    MacroSystem.emit('turn_start', entity, {});
+    
     processStatusEffects(entity, tokenElement);
 }
 
